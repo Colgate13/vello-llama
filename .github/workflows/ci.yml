@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality-gate:
+    name: quality-gate (Rust ${{ matrix.rust }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust ${{ matrix.rust }}
+        run: |
+          rustup toolchain install ${{ matrix.rust }} --profile minimal --component rustfmt --component clippy
+          rustup default ${{ matrix.rust }}
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            vello-cli/target
+          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('vello-cli/Cargo.lock', 'vello-cli/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.rust }}-
+
+      - name: Install shellcheck
+        run: sudo apt-get update -y && sudo apt-get install -y shellcheck
+
+      - name: Build vello binary (needed by quality.sh catalog-validate step)
+        run: |
+          cd vello-cli && cargo build --release
+          cd .. && ln -sf vello-cli/target/release/vello vello
+
+      - name: Run quality gate
+        run: ./scripts/quality.sh
+
+      - name: Verify project structure invariants
+        if: always()
+        run: |
+          test -x vello-installer || { echo "vello-installer missing executable bit"; exit 1; }
+          head -1 vello-installer | grep -q '^#!/usr/bin/env bash' || { echo "vello-installer missing bash shebang"; exit 1; }
+          test -f catalogs/default.toml || { echo "catalogs/default.toml missing"; exit 1; }
+          # No legacy artifacts should creep back in.
+          test ! -f catalog.json || { echo "catalog.json should have been removed"; exit 1; }
+          test ! -f .env.example || { echo ".env.example should have been removed"; exit 1; }
+          test ! -f system.toml.example || { echo "system.toml.example should have been removed"; exit 1; }
+
+      - name: Verify zero unwrap()/panic!() in src/ (excluding tests)
+        if: always()
+        run: ./scripts/check-no-unwrap.sh
+
+      - name: Upload quality-reports artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports-rust-${{ matrix.rust }}
+          path: quality-reports/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Build PR comment body
+        if: always() && github.event_name == 'pull_request' && hashFiles('quality-reports/summary.md') != ''
+        env:
+          PR_COMMENT_HEADING: 'Quality Gate — Rust ${{ matrix.rust }}'
+        run: ./scripts/pr-comment.sh > pr-comment.md
+
+      - name: Post quality-gate result to PR
+        if: always() && github.event_name == 'pull_request' && hashFiles('pr-comment.md') != ''
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: quality-gate-rust-${{ matrix.rust }}
+          path: pr-comment.md
+
+      - name: Append summary to GitHub UI
+        if: always() && hashFiles('quality-reports/summary.md') != ''
+        run: |
+          {
+            echo "## Quality Gate Summary"
+            echo
+            cat quality-reports/summary.md
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Required gate so branch protection can require this single check.
+  required:
+    name: required
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    if: always()
+    steps:
+      - name: Fail if any quality-gate matrix job failed
+        run: |
+          if [[ "${{ needs.quality-gate.result }}" != "success" ]]; then
+            echo "Quality gate failed (result=${{ needs.quality-gate.result }})"
+            exit 1
+          fi
+          echo "Quality gate passed."

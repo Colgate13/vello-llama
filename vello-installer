@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+# vello-installer — one-shot bootstrap for the vello-llama-local stack.
+#
+# This script does ONE thing: get the system ready to run `vello`. After that,
+# all daily use goes through the Rust binary at ./vello.
+#
+# Steps:
+#   1. Verify host prerequisites (docker, curl, nvidia-smi).
+#   2. Install nvidia-container-toolkit if missing (sudo).
+#   3. Smoke-test GPU passthrough.
+#   4. Build the llama-server Docker image (one-time, ~10-15 min).
+#   5. Install Rust toolchain if missing (offered, never forced).
+#   6. Build the `vello` binary.
+
+set -euo pipefail
+
+VERSION="0.4.0"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$PROJECT_ROOT"
+
+# ---------------------------------------------------------------------------
+# Pretty output
+# ---------------------------------------------------------------------------
+if [[ -t 1 ]] && [[ "${NO_COLOR:-}" == "" ]]; then
+  C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YEL=$'\033[33m'
+  C_CYN=$'\033[36m'; C_DIM=$'\033[2m'
+  C_BLD=$'\033[1m'; C_RST=$'\033[0m'
+else
+  C_RED=''; C_GRN=''; C_YEL=''; C_CYN=''
+  C_DIM=''; C_BLD=''; C_RST=''
+fi
+
+log()   { printf "%s\n" "$*"; }
+info()  { printf "${C_CYN}==>${C_RST} %s\n" "$*"; }
+ok()    { printf "${C_GRN} ok ${C_RST} %s\n" "$*"; }
+warn()  { printf "${C_YEL}warn${C_RST} %s\n" "$*" >&2; }
+err()   { printf "${C_RED}fail${C_RST} %s\n" "$*" >&2; }
+fatal() { err "$*"; exit 1; }
+
+require_cmd() {
+  command -v "$1" >/dev/null || fatal "$1 not found in PATH. Install it and retry."
+}
+
+# ---------------------------------------------------------------------------
+# Bootstrap
+# ---------------------------------------------------------------------------
+cmd_install() {
+  info "1/6 Checking prerequisites"
+  for c in docker curl nvidia-smi; do require_cmd "$c"; done
+  docker info >/dev/null 2>&1 || \
+    fatal "Docker daemon not accessible. Add yourself to the docker group: sudo usermod -aG docker \$USER"
+  ok "all prerequisites present"
+
+  info "2/6 nvidia-container-toolkit"
+  if dpkg -l nvidia-container-toolkit >/dev/null 2>&1; then
+    ok "already installed ($(dpkg-query -W -f='${Version}' nvidia-container-toolkit))"
+  else
+    install_nvidia_toolkit
+  fi
+
+  info "3/6 GPU passthrough smoke test"
+  if docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi -L >/dev/null 2>&1; then
+    ok "Docker can reach the GPU"
+  else
+    fatal "Docker cannot reach the GPU. Try: sudo systemctl restart docker"
+  fi
+
+  info "4/6 Build llama-server image (10-15 min one-time, cached after)"
+  if docker image inspect vello/llama-server-cuda:12.4 >/dev/null 2>&1; then
+    ok "image already built"
+  else
+    docker compose build llama-server
+    ok "image built"
+  fi
+
+  info "5/6 Rust toolchain"
+  ensure_rust
+
+  info "6/6 Build vello binary"
+  build_vello
+
+  echo
+  printf '%s\n\n' "${C_GRN}${C_BLD}Setup complete.${C_RST} From here on, use ${C_CYN}./vello${C_RST}:"
+  log "  ./vello recommend chat        # browse picks for your hardware"
+  log "  ./vello install qwen3-8b      # download + start"
+  log "  ./vello status                # is it running?"
+  log "  ./vello --help                # everything else"
+}
+
+install_nvidia_toolkit() {
+  info "installing nvidia-container-toolkit (sudo required)"
+  curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
+    | sudo gpg --batch --yes --dearmor \
+        -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+    | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
+    | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list >/dev/null
+  sudo apt-get update -y
+  sudo apt-get install -y nvidia-container-toolkit
+  sudo nvidia-ctk runtime configure --runtime=docker
+  sudo systemctl restart docker
+  ok "installed and Docker restarted"
+}
+
+ensure_rust() {
+  # Already on PATH?
+  if command -v cargo >/dev/null; then
+    ok "rust already installed ($(cargo --version | awk '{print $2}'))"
+    return 0
+  fi
+  # Installed via rustup but not sourced in this shell?
+  if [[ -f "$HOME/.cargo/env" ]]; then
+    # shellcheck disable=SC1091
+    source "$HOME/.cargo/env"
+    if command -v cargo >/dev/null; then
+      ok "rust found in ~/.cargo (sourced for this run)"
+      return 0
+    fi
+  fi
+  warn "rust toolchain not found"
+  log "  vello (the catalog CLI) is built from Rust source."
+  log "  Installer: rustup, runs entirely in \$HOME (no sudo)."
+  log "  Reverse with: rustup self uninstall"
+  if [[ -t 0 ]]; then
+    read -rp "Install Rust now via rustup? [Y/n] " -n 1 reply
+    echo
+    if [[ "$reply" =~ ^[Nn]$ ]]; then
+      fatal "Rust required to build vello. Install manually then re-run: ./vello-installer install"
+    fi
+  fi
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+  # shellcheck disable=SC1091
+  source "$HOME/.cargo/env"
+  ok "rust installed"
+}
+
+build_vello() {
+  if [[ ! -d "$PROJECT_ROOT/vello-cli" ]]; then
+    fatal "vello-cli/ source missing — broken checkout?"
+  fi
+  ( cd "$PROJECT_ROOT/vello-cli" && cargo build --release )
+  ln -sf vello-cli/target/release/vello "$PROJECT_ROOT/vello"
+  ok "built ./vello"
+}
+
+# ---------------------------------------------------------------------------
+# Help / version
+# ---------------------------------------------------------------------------
+cmd_version() { echo "vello-installer v$VERSION"; }
+
+cmd_help() {
+  cat <<EOF
+${C_BLD}vello-installer${C_RST} v$VERSION — one-shot bootstrap for the vello-llama-local stack.
+
+${C_CYN}USAGE${C_RST}
+  ./vello-installer install   Deps, GPU toolkit, Docker image, Rust, vello build.
+  ./vello-installer version
+
+After bootstrap, daily use is via ${C_CYN}./vello${C_RST}:
+  ./vello recommend chat
+  ./vello install <id>
+  ./vello up / down / status / logs / health
+  ./vello --help
+
+EOF
+}
+
+# ---------------------------------------------------------------------------
+# Dispatch
+# ---------------------------------------------------------------------------
+main() {
+  local cmd="${1:-help}"
+  shift || true
+  case "$cmd" in
+    install)              cmd_install "$@" ;;
+    version|-v|--version) cmd_version ;;
+    help|-h|--help|"")    cmd_help ;;
+    *)
+      err "unknown command: $cmd"
+      log "${C_DIM}vello-installer only bootstraps. For runtime ops, use: ./vello $cmd${C_RST}"
+      cmd_help
+      exit 1
+      ;;
+  esac
+}
+
+main "$@"
