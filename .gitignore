@@ -5,6 +5,18 @@ models/*
 *.gguf
 *.partial
 *.log
+profile.toml
+system.toml
+catalogs/user/*
+!catalogs/user/.gitkeep
+
+# vello-cli (Rust)
+vello-cli/target/
+/vello
+
+# CI / quality artifacts
+quality-reports/
+pr-comment.md
 
 # editors / OS
 .vscode/

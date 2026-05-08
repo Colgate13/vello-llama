@@ -5,7 +5,7 @@
 # which requires driver 555+. Consumer RTX cards (drivers like 550.x) cannot
 # use CUDA forward compatibility, so we build against CUDA 12.4 by default.
 #
-# Build with: ./vello-llama-local build  (or: docker compose build llama-server)
+# Build with: ./vello build  (or: docker compose build llama-server)
 
 ARG CUDA_VERSION=12.4.1
 ARG LLAMA_CPP_REF=master
