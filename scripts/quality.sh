@@ -93,7 +93,8 @@ skip_step() {
 }
 
 # ---------------------------------------------------------------------------
-# Per-step summarizers (read log + exit code, print one short line)
+# Per-step summarizers (read log + exit code, print one short line).
+# Invoked dynamically via `"$summary_fn"` above.
 # ---------------------------------------------------------------------------
 sum_clippy() {
   local log="$1"
@@ -160,7 +161,9 @@ run_step cargo-build sum_build \
 run_step bash-syntax sum_passthrough bash -n vello-installer
 
 if command -v shellcheck >/dev/null 2>&1; then
-  run_step shellcheck sum_passthrough shellcheck -x vello-installer scripts/quality.sh
+  run_step shellcheck sum_passthrough \
+    shellcheck --severity=warning -x \
+      vello-installer scripts/quality.sh scripts/pr-comment.sh scripts/check-no-unwrap.sh
 else
   skip_step shellcheck "shellcheck not installed"
 fi

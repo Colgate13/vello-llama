@@ -60,52 +60,7 @@ jobs:
 
       - name: Verify zero unwrap()/panic!() in src/ (excluding tests)
         if: always()
-        run: |
-          # Catches accidental unwrap/panic in non-test code. Tests are allowed.
-          if grep -rnE '\.unwrap\(\)|panic!\(' vello-cli/src \
-              --include='*.rs' \
-              | grep -v '#\[cfg(test)\]' \
-              | grep -v '^\s*//' \
-              | awk -F: '{
-                  # Skip lines inside test modules. Crude but effective: any
-                  # file where the line follows `mod tests {` is excluded.
-                  print $0
-                }' > /tmp/unwrap-hits || true
-          # Whitelist: schema serde defaults legitimately use unwrap_or_else.
-          # We're looking only for raw unwrap()/panic!().
-          if [[ -s /tmp/unwrap-hits ]]; then
-            # Filter out unwrap_or, unwrap_or_else, unwrap_or_default which are fine.
-            real=$(grep -vE '\.unwrap_(or|or_else|or_default)' /tmp/unwrap-hits || true)
-            # Also filter out anything in tests modules. Detect by checking if
-            # the file contains `mod tests` and the line number is after it.
-            # Simpler: ignore lines that contain `mod tests` themselves and trust
-            # that test code is gated behind #[cfg(test)] which clippy enforces.
-            real=$(echo "$real" | grep -v '/tests/' || true)
-            if [[ -n "$real" ]]; then
-              # Cross-check: in our codebase, unwrap() in tests is acceptable.
-              # Strip lines from test modules by extracting the module gate.
-              filtered=""
-              while IFS= read -r line; do
-                [[ -z "$line" ]] && continue
-                file=$(echo "$line" | cut -d: -f1)
-                lineno=$(echo "$line" | cut -d: -f2)
-                # Find the nearest preceding `#[cfg(test)]` or `mod tests {` line.
-                gate=$(awk -v target="$lineno" '
-                  /#\[cfg\(test\)\]/ || /^mod tests/ { last=NR }
-                  NR==target { print last; exit }
-                ' "$file")
-                if [[ -z "$gate" || "$gate" == "0" ]]; then
-                  filtered+="$line"$'\n'
-                fi
-              done <<< "$real"
-              if [[ -n "${filtered// }" ]]; then
-                echo "Found unwrap()/panic!() in non-test code:" >&2
-                echo "$filtered" >&2
-                exit 1
-              fi
-            fi
-          fi
-          echo "ok: no raw unwrap()/panic!() in non-test code"
+        run: ./scripts/check-no-unwrap.sh
 
       - name: Upload quality-reports artifact
         if: always()

@@ -153,7 +153,10 @@ fn jq_query(input: &str, expr: &str) -> Result<String> {
         .context("invoking jq — install with: apt install jq")?;
     {
         use std::io::Write;
-        let mut stdin = child.stdin.take().unwrap();
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("jq stdin unavailable"))?;
         stdin.write_all(input.as_bytes())?;
     }
     let out = child.wait_with_output()?;
