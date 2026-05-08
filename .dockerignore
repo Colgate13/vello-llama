@@ -1,0 +1,14 @@
+.git
+.github
+README.md
+LICENSE
+.env
+.env.example
+.gitignore
+.dockerignore
+Makefile
+catalog.json
+clients/
+models/
+*.md
+*.log

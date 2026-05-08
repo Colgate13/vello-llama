@@ -1,0 +1,12 @@
+# runtime data
+.env
+models/*
+!models/.gitkeep
+*.gguf
+*.partial
+*.log
+
+# editors / OS
+.vscode/
+.idea/
+.DS_Store

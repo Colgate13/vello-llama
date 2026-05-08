@@ -1,0 +1,55 @@
+# Build a llama.cpp server image pinned to a specific CUDA version,
+# so it works with whatever NVIDIA driver the host has.
+#
+# The official ghcr.io/ggml-org/llama.cpp:server-cuda image targets CUDA 12.6+,
+# which requires driver 555+. Consumer RTX cards (drivers like 550.x) cannot
+# use CUDA forward compatibility, so we build against CUDA 12.4 by default.
+#
+# Build with: ./vello-llama-local build  (or: docker compose build llama-server)
+
+ARG CUDA_VERSION=12.4.1
+ARG LLAMA_CPP_REF=master
+ARG CUDA_ARCH=89
+
+# ----- stage 1: build -----
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu22.04 AS build
+ARG LLAMA_CPP_REF
+ARG CUDA_ARCH
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git build-essential cmake ccache libcurl4-openssl-dev ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# libcuda.so.1 ships with the NVIDIA driver, not the CUDA toolkit. The build
+# environment has no driver, so we link against the toolkit's stub library.
+# Without this, libggml-cuda.so fails to link (cuMem*, cuDevice*, etc.).
+RUN ln -sf /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 \
+ && echo "/usr/local/cuda/lib64/stubs" > /etc/ld.so.conf.d/cuda-stubs.conf \
+ && ldconfig
+
+WORKDIR /opt
+RUN git clone --depth=1 --branch ${LLAMA_CPP_REF} https://github.com/ggml-org/llama.cpp.git
+
+WORKDIR /opt/llama.cpp
+RUN cmake -B build \
+      -DGGML_CUDA=ON \
+      -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCH} \
+      -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs \
+      -DLLAMA_CURL=ON \
+      -DCMAKE_BUILD_TYPE=Release \
+ && cmake --build build --config Release -j"$(nproc)" --target llama-server
+
+# ----- stage 2: runtime -----
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04 AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl libgomp1 libcurl4 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+# Copy entire bin/ to preserve symlinks (libfoo.so -> libfoo.so.0 -> libfoo.so.0.X.Y)
+COPY --from=build /opt/llama.cpp/build/bin/ /app/
+
+ENV LD_LIBRARY_PATH=/app
+EXPOSE 8080
+ENTRYPOINT ["/app/llama-server"]

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "local": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "vello-llama-local",
+      "options": {
+        "baseURL": "http://localhost:8080/v1",
+        "apiKey": "local-no-auth"
+      },
+      "models": {
+        "qwen2.5-7b-local": {
+          "name": "Qwen 2.5 7B Instruct (local)",
+          "tools": true,
+          "reasoning": false,
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          }
+        }
+      }
+    }
+  },
+  "model": "local/qwen2.5-7b-local"
+}

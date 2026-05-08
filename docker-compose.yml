@@ -1,0 +1,92 @@
+# vello-llama-local stack: llama.cpp (CUDA) + Open WebUI
+#
+# Managed by ./vello-llama-local CLI. Variables come from .env (see .env.example).
+
+name: vello-llama-local
+
+services:
+  llama-server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.llama-cuda
+      args:
+        # CUDA toolkit version. Must be <= what your NVIDIA driver supports.
+        # Driver 550.x   -> CUDA 12.4 (this default works)
+        # Driver 555.x+  -> can bump to 12.6 if desired
+        CUDA_VERSION: 12.4.1
+        # CUDA architecture. 89 = RTX 4060/4070/4080/4090 (Ada Lovelace).
+        # 86 = RTX 3060/3070/3080/3090 (Ampere). 75 = RTX 2060/2070/2080 (Turing).
+        CUDA_ARCH: "89"
+    image: vello/llama-server-cuda:12.4
+    container_name: llama-server
+    ports:
+      - "${LLAMA_PORT:-8080}:8080"
+    volumes:
+      - ./models:/models:ro
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    # Tuning flags. See .env.example for what each var does.
+    #   --n-gpu-layers 99       offload everything to GPU
+    #   --flash-attn on         fused attention; faster + less VRAM
+    #   --cache-type-{k,v} q8_0 quantized KV cache; ~50% less VRAM, near-zero quality loss
+    #   --jinja                 use the GGUF's chat template (required for tool calling)
+    #   --threads N             physical CPU cores (don't count SMT)
+    #   --metrics               expose /metrics (Prometheus format)
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --model
+      - /models/${LLAMA_MODEL_FILE}
+      - --alias
+      - ${LLAMA_MODEL_ALIAS:-local-model}
+      - --ctx-size
+      - "${LLAMA_CTX:-32768}"
+      - --n-gpu-layers
+      - "${LLAMA_NGL:-99}"
+      - --threads
+      - "${LLAMA_THREADS:-6}"
+      - --batch-size
+      - "${LLAMA_BATCH:-2048}"
+      - --ubatch-size
+      - "${LLAMA_UBATCH:-512}"
+      - --flash-attn
+      - "on"
+      - --cache-type-k
+      - q8_0
+      - --cache-type-v
+      - q8_0
+      - --jinja
+      - --metrics
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 90s
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "${WEBUI_PORT:-3000}:8080"
+    volumes:
+      - open-webui-data:/app/backend/data
+    environment:
+      - OPENAI_API_BASE_URL=http://llama-server:8080/v1
+      - OPENAI_API_KEY=local-no-auth
+      - ENABLE_OPENAI_API=true
+      - ENABLE_OLLAMA_API=false
+      - WEBUI_AUTH=${WEBUI_AUTH:-False}
+      - DEFAULT_MODELS=${LLAMA_MODEL_ALIAS:-local-model}
+    depends_on:
+      llama-server:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  open-webui-data:
