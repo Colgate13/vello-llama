@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# vello-installer — one-shot bootstrap for the vello-llama-local stack.
+# vello-installer — one-shot bootstrap for the vello-llama stack.
 #
 # This script does ONE thing: get the system ready to run `vello`. After that,
 # all daily use goes through the Rust binary at ./vello.
@@ -11,6 +11,7 @@
 #   4. Build the llama-server Docker image (one-time, ~10-15 min).
 #   5. Install Rust toolchain if missing (offered, never forced).
 #   6. Build the `vello` binary.
+#   7. Expose `vello` on PATH via ~/.local/bin (no sudo, reversible).
 
 set -euo pipefail
 
@@ -45,27 +46,27 @@ require_cmd() {
 # Bootstrap
 # ---------------------------------------------------------------------------
 cmd_install() {
-  info "1/6 Checking prerequisites"
+  info "1/7 Checking prerequisites"
   for c in docker curl nvidia-smi; do require_cmd "$c"; done
   docker info >/dev/null 2>&1 || \
     fatal "Docker daemon not accessible. Add yourself to the docker group: sudo usermod -aG docker \$USER"
   ok "all prerequisites present"
 
-  info "2/6 nvidia-container-toolkit"
+  info "2/7 nvidia-container-toolkit"
   if dpkg -l nvidia-container-toolkit >/dev/null 2>&1; then
     ok "already installed ($(dpkg-query -W -f='${Version}' nvidia-container-toolkit))"
   else
     install_nvidia_toolkit
   fi
 
-  info "3/6 GPU passthrough smoke test"
+  info "3/7 GPU passthrough smoke test"
   if docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi -L >/dev/null 2>&1; then
     ok "Docker can reach the GPU"
   else
     fatal "Docker cannot reach the GPU. Try: sudo systemctl restart docker"
   fi
 
-  info "4/6 Build llama-server image (10-15 min one-time, cached after)"
+  info "4/7 Build llama-server image (10-15 min one-time, cached after)"
   if docker image inspect vello/llama-server-cuda:12.4 >/dev/null 2>&1; then
     ok "image already built"
   else
@@ -73,18 +74,21 @@ cmd_install() {
     ok "image built"
   fi
 
-  info "5/6 Rust toolchain"
+  info "5/7 Rust toolchain"
   ensure_rust
 
-  info "6/6 Build vello binary"
+  info "6/7 Build vello binary"
   build_vello
 
+  info "7/7 Expose vello on PATH"
+  link_into_path
+
   echo
-  printf '%s\n\n' "${C_GRN}${C_BLD}Setup complete.${C_RST} From here on, use ${C_CYN}./vello${C_RST}:"
-  log "  ./vello recommend chat        # browse picks for your hardware"
-  log "  ./vello install qwen3-8b      # download + start"
-  log "  ./vello status                # is it running?"
-  log "  ./vello --help                # everything else"
+  printf '%s\n\n' "${C_GRN}${C_BLD}Setup complete.${C_RST} You can now run ${C_CYN}vello${C_RST} from anywhere:"
+  log "  vello recommend chat        # browse picks for your hardware"
+  log "  vello install qwen3-8b      # download + start"
+  log "  vello status                # is it running?"
+  log "  vello --help                # everything else"
 }
 
 install_nvidia_toolkit() {
@@ -143,6 +147,43 @@ build_vello() {
   ok "built ./vello"
 }
 
+# Symlink ~/.local/bin/vello → ./vello so the user can call `vello` anywhere.
+# User-scoped, no sudo. Reverse with: rm ~/.local/bin/vello
+link_into_path() {
+  local bin_dir="$HOME/.local/bin"
+  local target="$bin_dir/vello"
+  local source="$PROJECT_ROOT/vello"
+
+  mkdir -p "$bin_dir"
+
+  # If something else already lives there, don't clobber it silently.
+  if [[ -e "$target" || -L "$target" ]]; then
+    local current
+    current="$(readlink -f "$target" 2>/dev/null || true)"
+    if [[ "$current" == "$(readlink -f "$source")" ]]; then
+      ok "already linked ($target)"
+    else
+      warn "$target exists and points elsewhere ($current)"
+      log "  leaving it alone — remove it manually and re-run if you want vello to take over"
+      return 0
+    fi
+  else
+    ln -s "$source" "$target"
+    ok "linked $target → $source"
+  fi
+
+  # Confirm the directory is actually on PATH for this user's shell.
+  case ":$PATH:" in
+    *":$bin_dir:"*) ok "$bin_dir is on PATH" ;;
+    *)
+      warn "$bin_dir is not on PATH"
+      log "  add this line to your shell rc (~/.bashrc or ~/.zshrc) and reopen the shell:"
+      log "    export PATH=\"\$HOME/.local/bin:\$PATH\""
+      log "  until then, keep using ./vello from $PROJECT_ROOT"
+      ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # Help / version
 # ---------------------------------------------------------------------------
@@ -150,17 +191,19 @@ cmd_version() { echo "vello-installer v$VERSION"; }
 
 cmd_help() {
   cat <<EOF
-${C_BLD}vello-installer${C_RST} v$VERSION — one-shot bootstrap for the vello-llama-local stack.
+${C_BLD}vello-installer${C_RST} v$VERSION — one-shot bootstrap for the vello-llama stack.
 
 ${C_CYN}USAGE${C_RST}
-  ./vello-installer install   Deps, GPU toolkit, Docker image, Rust, vello build.
+  ./vello-installer install   Deps, GPU toolkit, Docker image, Rust, vello build,
+                              and a ~/.local/bin/vello symlink so you can run
+                              ${C_CYN}vello${C_RST} from anywhere.
   ./vello-installer version
 
-After bootstrap, daily use is via ${C_CYN}./vello${C_RST}:
-  ./vello recommend chat
-  ./vello install <id>
-  ./vello up / down / status / logs / health
-  ./vello --help
+After bootstrap, daily use is via ${C_CYN}vello${C_RST} (no ./ needed):
+  vello recommend chat
+  vello install <id>
+  vello up / down / status / logs / health
+  vello --help
 
 EOF
 }

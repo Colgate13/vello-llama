@@ -1,7 +1,7 @@
 {
   "$schema": "https://charm.land/crush.json",
   "providers": {
-    "vello-llama-local": {
+    "vello-llama": {
       "type": "openai",
       "base_url": "http://localhost:8080/v1",
       "api_key": "local-no-auth",

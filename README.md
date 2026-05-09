@@ -1,11 +1,11 @@
-# vello-llama-local
+# vello-llama
 
 > Self-hosted LLMs on your GPU. One installer, one CLI, one Web UI. No cloud,
 > no API key, no telemetry.
 
 ```bash
-git clone https://github.com/Colgate13/vello-llama-local.git
-cd vello-llama-local
+git clone https://github.com/Colgate13/vello-llama.git
+cd vello-llama
 ./vello-installer install
 ./vello recommend chat
 ./vello install qwen3-8b
@@ -37,7 +37,7 @@ start its own first-run setup (embedding model + SQLite). Watch progress with
 
 ## What this project is
 
-**vello-llama-local** is a thin, opinionated stack that runs open-weight LLMs
+**vello-llama** is a thin, opinionated stack that runs open-weight LLMs
 locally with three guarantees:
 
 1. **One curated path.** A catalog of models that actually run well on consumer
@@ -131,8 +131,8 @@ already present.
 ### What the installer does
 
 ```bash
-git clone https://github.com/Colgate13/vello-llama-local.git
-cd vello-llama-local
+git clone https://github.com/Colgate13/vello-llama.git
+cd vello-llama
 ./vello-installer install
 ```
 
@@ -151,7 +151,7 @@ is cached after first run):
 When it finishes, you'll have:
 
 ```
-vello-llama-local/
+vello-llama/
 ├── vello-installer        # the script you just ran (won't need again)
 ├── vello                  # symlink to the Rust binary you'll use daily
 ├── vello-cli/             # Rust source (for rebuilds)
@@ -650,7 +650,7 @@ Or globally bias vello toward smaller quants by lowering `vram_gb` in
 <summary><b>vello says "could not locate the project root"</b></summary>
 
 Run it from inside the project directory, or set
-`VELLO_PROJECT_ROOT=/path/to/vello-llama-local` in your environment.
+`VELLO_PROJECT_ROOT=/path/to/vello-llama` in your environment.
 </details>
 
 ---
@@ -665,7 +665,7 @@ rm -f models/*.gguf                                   # downloaded models
 sudo rm -rf openwebui-data                            # Open WebUI data (root-owned)
 rm -rf vello-cli/target vello profile.toml system.toml .env
 sudo apt purge nvidia-container-toolkit               # optional, system-wide
-rm -rf /path/to/vello-llama-local                     # the repo
+rm -rf /path/to/vello-llama                          # the repo
 ```
 
 The `vello-installer` only writes inside the project directory and inside

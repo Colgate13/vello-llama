@@ -3,7 +3,7 @@
   "provider": {
     "local": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "vello-llama-local",
+      "name": "vello-llama",
       "options": {
         "baseURL": "http://localhost:8080/v1",
         "apiKey": "local-no-auth"

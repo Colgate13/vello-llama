@@ -129,7 +129,7 @@ pub fn load_or_default(path: &Path) -> Result<SystemConfig> {
 /// Write a fresh system.toml with documented sections. Used for the example
 /// file and as a template if the user runs `vello system init`.
 pub fn render_template() -> String {
-    r#"# vello-llama-local — system configuration.
+    r#"# vello-llama — system configuration.
 # Edit this file. Vello regenerates .env from here on every `vello apply`,
 # `vello switch`, or `vello install`.
 

@@ -44,7 +44,7 @@ Run `vello <command> --help` for the long form of any subcommand.";
 #[command(
     name = "vello",
     version,
-    about = "Curated LLM catalog + Docker stack control for vello-llama-local",
+    about = "Curated LLM catalog + Docker stack control for vello-llama",
     long_about = "vello manages a curated catalog of GGUF models, downloads them from \
                   HuggingFace, and drives the local llama.cpp + Open WebUI Docker stack.\n\
                   \n\
@@ -191,7 +191,7 @@ enum Cmd {
         sub: ProfileCmd,
     },
 
-    /// Pull the latest vello-llama-local from git and rebuild the CLI.
+    /// Pull the latest vello-llama from git and rebuild the CLI.
     #[command(
         long_about = "Updates vello in-place: refuses to run on a dirty working tree (use \
                       --force to override), runs `git pull --ff-only`, and rebuilds the Rust \
