@@ -30,6 +30,7 @@ start its own first-run setup (embedding model + SQLite). Watch progress with
 - [The catalog](#the-catalog)
 - [Connecting clients](#connecting-clients)
 - [Troubleshooting](#troubleshooting)
+- [Testing](#testing)
 - [Uninstall](#uninstall)
 - [License](#license)
 
@@ -652,6 +653,59 @@ Or globally bias vello toward smaller quants by lowering `vram_gb` in
 Run it from inside the project directory, or set
 `VELLO_PROJECT_ROOT=/path/to/vello-llama` in your environment.
 </details>
+
+---
+
+## Testing
+
+`scripts/e2e.sh` is an end-to-end smoke test that drives every
+non-interactive `vello` command against a real Docker stack on the host.
+
+```bash
+make e2e               # asks for confirmation
+make e2e ARGS=-y       # no prompt
+make e2e ARGS=--keep   # keep the .e2e-backup-<ts>/ dir for inspection
+```
+
+### What it covers
+
+44 checks across six phases — discovery (`list`/`info`/`recommend`),
+profile, catalog add/remove with a synthetic TOML, install + lifecycle
+(`up` → `health` → `bench` → `restart` → `down`), tool-calling validation
+(`vello test`) on a tools-capable model, and final `remove`. The full
+list of commands is in the script header.
+
+Skipped (with reasons in the script):
+- `vello update` — mutates git state
+- `vello build` — would rebuild the CUDA image (~10–15 min)
+- `vello gpu` and `vello logs -f` — interactive
+
+### How it stays safe
+
+The script runs **in-place** in the project, but snapshots and restores
+everything it touches:
+
+| Touched | Snapshot mechanism | Restore |
+|---|---|---|
+| `.env`, `system.toml`, `profile.toml` | copied to `.e2e-backup-<ts>/` | overwritten back on exit |
+| `models/*.gguf` | `ls` written to `pre-models.txt` | only files added by the test are deleted |
+| `vello/llama-server-cuda:12.4` | `docker tag` to `vello-e2e-backup:<ts>` | re-tagged back, backup tag removed |
+| compose stack | none — torn down via `vello nuke -y` at the end | n/a |
+
+A `trap EXIT INT TERM` runs the cleanup unconditionally, so even
+Ctrl-C or a mid-test failure leaves the host in the pre-test state.
+`openwebui-data/` (your conversations) is never touched.
+
+### Pre-flight requirements
+
+- `git docker curl jq nvidia-smi` on PATH
+- Docker daemon reachable (your user in the `docker` group)
+- `./vello` already built (run `make build-vello` once)
+- Image `vello/llama-server-cuda:12.4` already present (run `./vello build` once)
+- The stack must NOT be running when the test starts
+
+The test downloads `deepseek-r1-distill-qwen-1.5b` (~1.1 GB) if it is
+not already on disk, and removes it at the end.
 
 ---
 
