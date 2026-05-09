@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: install build-vello vello-clean help
+.PHONY: install build-vello vello-clean e2e help
 
 # Convenience wrappers. For everything else, use ./vello directly.
 
@@ -19,3 +19,6 @@ vello-clean:
 	@command -v cargo >/dev/null 2>&1 || . "$$HOME/.cargo/env"; \
 	  cd vello-cli && cargo clean
 	@rm -f vello
+
+e2e:
+	@./scripts/e2e.sh $(ARGS)
