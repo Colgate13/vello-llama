@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>vello — self-hosted LLMs on your GPU</title>
-  <meta name="description" content="One installer, one CLI, one Web UI. Run open-weight LLMs locally on consumer GPUs. No cloud, no API key, no telemetry.">
+  <title>vello — open project for self-hosted LLMs on your GPU</title>
+  <meta name="description" content="An open MIT-licensed project to run open-weight LLMs on your own GPU. Catalog-driven, OpenAI-compatible. Built on llama.cpp + Open WebUI.">
   <meta name="theme-color" content="#080c11">
 
-  <meta property="og:title" content="vello — self-hosted LLMs on your GPU">
-  <meta property="og:description" content="One installer, one CLI, one Web UI. No cloud, no API key, no telemetry.">
+  <meta property="og:title" content="vello — open project for self-hosted LLMs">
+  <meta property="og:description" content="An open MIT-licensed project to run open-weight LLMs on your own GPU. Catalog-driven, OpenAI-compatible.">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary">
 
@@ -1126,11 +1126,11 @@
   <div class="container nav">
     <a href="#top" class="brand"><span class="dot"></span>vello</a>
     <nav class="nav-links">
-      <a href="#why" data-en="Why" data-pt="Por quê">Why</a>
-      <a href="#compare" data-en="Compare" data-pt="Comparar">Compare</a>
-      <a href="#quickstart" data-en="Quickstart" data-pt="Começo rápido">Quickstart</a>
-      <a href="#how" data-en="How it works" data-pt="Como funciona">How it works</a>
-      <a href="#catalog" data-en="Catalog" data-pt="Catálogo">Catalog</a>
+      <a href="#architecture" data-en="Architecture" data-pt="Arquitetura">Architecture</a>
+      <a href="#install" data-en="Install" data-pt="Instalação">Install</a>
+      <a href="#catalog" data-en="Catalogs" data-pt="Catálogos">Catalogs</a>
+      <a href="#community" data-en="Community" data-pt="Comunidade">Community</a>
+      <a href="#use-cases" data-en="Use cases" data-pt="Casos de uso">Use cases</a>
       <a href="#connect" data-en="Connect" data-pt="Conectar">Connect</a>
       <a href="#faq" data-en="FAQ" data-pt="FAQ">FAQ</a>
     </nav>
@@ -1157,9 +1157,9 @@
         <div>
           <span class="eyebrow">
             <span class="dot-mini"></span>
-            <span data-en="self-hosted · gpu-native · openai-compatible"
-                  data-pt="self-hosted · roda na sua gpu · api openai">
-              self-hosted · gpu-native · openai-compatible
+            <span data-en="open project · mit licensed · share &amp; remix"
+                  data-pt="projeto aberto · licença mit · use e remixe">
+              open project · mit licensed · share &amp; remix
             </span>
           </span>
 
@@ -1169,38 +1169,19 @@
           </h1>
 
           <p class="lede"
-             data-en="One installer, one CLI, one Web UI. A curated catalog that auto-picks the right quantization for your hardware. No cloud, no API key, no telemetry — your conversations stay on your disk."
-             data-pt="Um installer, uma CLI, uma Web UI. Um catálogo curado que escolhe automaticamente a quantização certa pra sua máquina. Sem nuvem, sem API key, sem telemetria — suas conversas ficam no seu disco.">
+             data-en="An open project that wraps llama.cpp and Open WebUI behind a small CLI. You pick a model from a catalog, vello picks a quantization that fits your VRAM, and Docker brings the stack up. That's the whole idea."
+             data-pt="Um projeto aberto que junta llama.cpp e Open WebUI atrás de uma CLI enxuta. Você escolhe um modelo do catálogo, o vello escolhe a quantização que cabe na sua VRAM, e o Docker sobe a stack. É isso.">
           </p>
 
           <div class="cta">
-            <a class="btn btn-primary" href="#quickstart">
-              <span data-en="Get started" data-pt="Começar">Get started</span>
+            <a class="btn btn-primary" href="#install">
+              <span data-en="How to install" data-pt="Como instalar">How to install</span>
               <span aria-hidden="true">→</span>
             </a>
             <a class="btn btn-secondary" href="https://github.com/Colgate13/vello-llama" target="_blank" rel="noopener">
               <span data-en="View source" data-pt="Ver código">View source</span>
               <span aria-hidden="true">↗</span>
             </a>
-          </div>
-
-          <div class="stats">
-            <div class="stat">
-              <div class="stat-value">29</div>
-              <div class="stat-label" data-en="Curated models" data-pt="Modelos curados"></div>
-            </div>
-            <div class="stat">
-              <div class="stat-value">8 GB+</div>
-              <div class="stat-label" data-en="VRAM minimum" data-pt="VRAM mínimo"></div>
-            </div>
-            <div class="stat">
-              <div class="stat-value">5</div>
-              <div class="stat-label" data-en="Commands to chat" data-pt="Comandos pro chat"></div>
-            </div>
-            <div class="stat">
-              <div class="stat-value">0</div>
-              <div class="stat-label" data-en="Telemetry" data-pt="Telemetria"></div>
-            </div>
           </div>
         </div>
 
@@ -1217,243 +1198,17 @@
   </section>
 
   <!-- ============================================================
-       WHY
+       ARCHITECTURE
        ============================================================ -->
-  <section id="why">
+  <section id="architecture">
     <div class="container">
       <div class="reveal">
-        <div class="section-eyebrow" data-en="Why vello" data-pt="Por que vello">Why vello</div>
-        <h2 data-en="Built for one job. Done well."
-            data-pt="Feito pra uma coisa só. Feito direito.">
-          Built for one job. Done well.
-        </h2>
-        <p class="section-lede"
-           data-en="Running open-weight LLMs on consumer GPUs and getting out of your way. No accounts, no dashboards, no surprises."
-           data-pt="Rodar LLMs abertos em GPUs de consumidor e sair do seu caminho. Sem contas, sem dashboards, sem surpresas.">
-        </p>
-      </div>
-
-      <div class="why-grid reveal">
-        <div class="feat">
-          <div class="feat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 12h2m4 0h4"/><circle cx="9" cy="12" r="0.6" fill="currentColor"/>
-            </svg>
-          </div>
-          <h3 data-en="Hardware-aware catalog" data-pt="Catálogo ciente do hardware"></h3>
-          <p data-en="Models that actually fit 8–24 GB GPUs. Quantization picked from your VRAM and RAM, MoE offload tuned, vision projectors auto-pulled."
-             data-pt="Modelos que realmente cabem em GPUs de 8–24 GB. Quantização escolhida pelo seu VRAM e RAM, offload MoE ajustado, projetores de visão baixados sozinhos."></p>
-        </div>
-
-        <div class="feat">
-          <div class="feat-icon blue">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="M20 4 14 10"/><path d="M4 20l6-6"/>
-            </svg>
-          </div>
-          <h3 data-en="OpenAI-compatible API" data-pt="API compatível com OpenAI"></h3>
-          <p data-en="Served at localhost:8080/v1. Cursor, Continue.dev, opencode, langchain, your own scripts — all of them work without changes."
-             data-pt="Servido em localhost:8080/v1. Cursor, Continue.dev, opencode, langchain, seus scripts — tudo funciona sem mudar nada."></p>
-        </div>
-
-        <div class="feat">
-          <div class="feat-icon purple">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M14 3h7v7"/><path d="M3 21l18-18"/><path d="M10 21H3v-7"/>
-            </svg>
-          </div>
-          <h3 data-en="No magic config" data-pt="Sem config mágico"></h3>
-          <p data-en="Three readable TOMLs feed a generator. The .env that Docker reads is rebuilt from them — never hand-edited, never out of sync."
-             data-pt="Três TOMLs legíveis alimentam um gerador. O .env que o Docker lê é reconstruído a partir deles — você nunca edita à mão, nunca fica fora de sincronia."></p>
-        </div>
-
-        <div class="feat">
-          <div class="feat-icon orange">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 12l2 2 4-4"/>
-            </svg>
-          </div>
-          <h3 data-en="Zero telemetry" data-pt="Zero telemetria"></h3>
-          <p data-en="No phone-home, no analytics, no accounts, no API keys. Models, conversations and configs all live on your disk. MIT licensed."
-             data-pt="Sem chamar pra casa, sem analytics, sem contas, sem API keys. Modelos, conversas e configs ficam todos no seu disco. Licença MIT."></p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       COMPARE
-       ============================================================ -->
-  <section id="compare">
-    <div class="container">
-      <div class="reveal">
-        <div class="section-eyebrow" data-en="The trade-off" data-pt="O trade-off">The trade-off</div>
-        <h2 data-en="Why not just use the cloud — or raw llama.cpp?"
-            data-pt="Por que não usar a nuvem — ou só o llama.cpp puro?">
-          Why not just use the cloud — or raw llama.cpp?
-        </h2>
-        <p class="section-lede"
-           data-en="Three honest paths to running an LLM. vello sits between the convenience of cloud APIs and the control of running it yourself, without the cost of either extreme."
-           data-pt="Três caminhos honestos pra rodar um LLM. O vello fica entre a conveniência de APIs em nuvem e o controle de rodar sozinho, sem o custo dos extremos.">
-        </p>
-      </div>
-
-      <div class="compare reveal">
-
-        <div class="compare-card">
-          <div class="compare-name" data-en="Cloud APIs" data-pt="APIs em nuvem">Cloud APIs</div>
-          <h3 class="compare-headline"
-              data-en="Convenient. Costly. Watched."
-              data-pt="Conveniente. Caro. Monitorado."></h3>
-          <ul class="compare-list">
-            <li><span class="ic yes">✓</span><span data-en="Zero install, ready in seconds"
-                                                   data-pt="Zero instalação, pronto em segundos"></span></li>
-            <li><span class="ic yes">✓</span><span data-en="State-of-the-art frontier models"
-                                                   data-pt="Modelos de ponta no estado da arte"></span></li>
-            <li><span class="ic no">✕</span><span data-en="Per-token cost adds up fast"
-                                                   data-pt="Custo por token soma rápido"></span></li>
-            <li><span class="ic no">✕</span><span data-en="Your prompts leave your machine"
-                                                   data-pt="Seus prompts saem da sua máquina"></span></li>
-            <li><span class="ic no">✕</span><span data-en="Rate limits, outages, model deprecations"
-                                                   data-pt="Rate limits, quedas, deprecação de modelos"></span></li>
-          </ul>
-        </div>
-
-        <div class="compare-card">
-          <div class="compare-name" data-en="Raw llama.cpp" data-pt="llama.cpp puro">Raw llama.cpp</div>
-          <h3 class="compare-headline"
-              data-en="Total control. Total work."
-              data-pt="Controle total. Trabalho total."></h3>
-          <ul class="compare-list">
-            <li><span class="ic yes">✓</span><span data-en="Full control over every flag"
-                                                   data-pt="Controle total de cada flag"></span></li>
-            <li><span class="ic yes">✓</span><span data-en="Local and private by default"
-                                                   data-pt="Local e privado por padrão"></span></li>
-            <li><span class="ic no">✕</span><span data-en="Hours of CUDA, drivers, build flags"
-                                                   data-pt="Horas de CUDA, drivers, flags de build"></span></li>
-            <li><span class="ic no">✕</span><span data-en="You pick quantization by hand"
-                                                   data-pt="Você escolhe a quantização à mão"></span></li>
-            <li><span class="ic no">✕</span><span data-en="No web UI, no catalog, no scaffolding"
-                                                   data-pt="Sem web UI, sem catálogo, sem andaime"></span></li>
-          </ul>
-        </div>
-
-        <div class="compare-card featured" data-featured-label="recommended"
-             data-featured-label-en="recommended" data-featured-label-pt="recomendado">
-          <div class="compare-name">vello</div>
-          <h3 class="compare-headline"
-              data-en="Convenient. Local. Free."
-              data-pt="Conveniente. Local. Grátis."></h3>
-          <ul class="compare-list">
-            <li><span class="ic yes">✓</span><span data-en="Five commands from clone to chat"
-                                                   data-pt="Cinco comandos do clone ao chat"></span></li>
-            <li><span class="ic yes">✓</span><span data-en="Auto-picks quantization for your GPU"
-                                                   data-pt="Escolhe a quantização certa pra sua GPU"></span></li>
-            <li><span class="ic yes">✓</span><span data-en="Web UI + OpenAI API included"
-                                                   data-pt="Web UI + API OpenAI inclusos"></span></li>
-            <li><span class="ic yes">✓</span><span data-en="Stays 100% on your machine"
-                                                   data-pt="Fica 100% na sua máquina"></span></li>
-            <li><span class="ic yes">✓</span><span data-en="MIT licensed, zero telemetry"
-                                                   data-pt="Licença MIT, zero telemetria"></span></li>
-          </ul>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       QUICKSTART
-       ============================================================ -->
-  <section id="quickstart">
-    <div class="container">
-      <div class="reveal">
-        <div class="section-eyebrow" data-en="Quickstart" data-pt="Começo rápido">Quickstart</div>
-        <h2 data-en="From clone to chat in five steps."
-            data-pt="Do clone ao chat em cinco passos.">
-        </h2>
-        <p class="section-lede"
-           data-en="The installer runs once and bootstraps everything. After that, daily use is a single binary on your PATH."
-           data-pt="O installer roda uma vez e prepara tudo. Depois disso, o dia-a-dia é um único binário no seu PATH.">
-        </p>
-      </div>
-
-      <div class="timeline reveal">
-
-        <div class="step">
-          <div class="step-num">01</div>
-          <div class="step-body">
-            <div class="step-title" data-en="Clone the repo" data-pt="Clone o repositório"></div>
-            <p class="step-desc"
-               data-en="Grab the source. The installer lives in here."
-               data-pt="Pegue o código. O installer mora aqui dentro."></p>
-            <div class="step-cmd"><span class="pmt">$</span> git clone <span class="str">https://github.com/Colgate13/vello-llama.git</span>
-<span class="pmt">$</span> <span class="kw">cd</span> vello-llama</div>
-          </div>
-        </div>
-
-        <div class="step">
-          <div class="step-num">02</div>
-          <div class="step-body">
-            <div class="step-title" data-en="Run the installer (once)" data-pt="Rode o installer (uma vez)"></div>
-            <p class="step-desc"
-               data-en="Verifies prerequisites, installs the NVIDIA toolkit, builds the llama-server image, sets up the Rust toolchain, and exposes vello on your PATH. ~12–20 min."
-               data-pt="Verifica pré-requisitos, instala o NVIDIA toolkit, compila a imagem do llama-server, prepara o Rust e expõe o vello no seu PATH. ~12–20 min."></p>
-            <div class="step-cmd"><span class="pmt">$</span> ./vello-installer install</div>
-          </div>
-        </div>
-
-        <div class="step">
-          <div class="step-num">03</div>
-          <div class="step-body">
-            <div class="step-title" data-en="Pick a model for your hardware" data-pt="Escolha um modelo pra sua máquina"></div>
-            <p class="step-desc"
-               data-en="recommend ranks the catalog for your GPU. install picks the best quantization, downloads the GGUF, and writes the .env."
-               data-pt="recommend ranqueia o catálogo pra sua GPU. install escolhe a melhor quantização, baixa o GGUF e escreve o .env."></p>
-            <div class="step-cmd"><span class="pmt">$</span> vello recommend chat
-<span class="pmt">$</span> vello install qwen3-8b</div>
-          </div>
-        </div>
-
-        <div class="step">
-          <div class="step-num">04</div>
-          <div class="step-body">
-            <div class="step-title" data-en="Boot the stack" data-pt="Suba o stack"></div>
-            <p class="step-desc"
-               data-en="Starts llama-server (CUDA) and Open WebUI. First boot takes 1–3 min while the model is mmapped onto the GPU."
-               data-pt="Sobe o llama-server (CUDA) e o Open WebUI. O primeiro boot leva 1–3 min enquanto o modelo é mmapped pra GPU."></p>
-            <div class="step-cmd"><span class="pmt">$</span> vello up
-<span class="pmt">$</span> vello health   <span class="cmt"># is the API up?</span></div>
-          </div>
-        </div>
-
-        <div class="step">
-          <div class="step-num">05</div>
-          <div class="step-body">
-            <div class="step-title" data-en="Open the chat" data-pt="Abra o chat"></div>
-            <p class="step-desc"
-               data-en="Open WebUI is wired to llama-server inside the Docker network. No login required by default."
-               data-pt="O Open WebUI já está conectado ao llama-server dentro da rede Docker. Não pede login por padrão."></p>
-            <div class="step-cmd"><span class="pmt">$</span> xdg-open <span class="str">http://localhost:3000</span></div>
-          </div>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       HOW IT WORKS
-       ============================================================ -->
-  <section id="how">
-    <div class="container">
-      <div class="reveal">
-        <div class="section-eyebrow" data-en="How it works" data-pt="Como funciona">How it works</div>
+        <div class="section-eyebrow" data-en="Architecture" data-pt="Arquitetura">Architecture</div>
         <h2 data-en="Three TOMLs, one generated .env, two containers."
             data-pt="Três TOMLs, um .env gerado, dois containers."></h2>
         <p class="section-lede"
-           data-en-html="Hardware profile + machine prefs + curated catalog merge into the <code>.env</code> that <code>docker compose</code> consumes. You edit TOMLs; vello does the wiring."
-           data-pt-html="Perfil de hardware + preferências da máquina + catálogo curado se fundem no <code>.env</code> que o <code>docker compose</code> consome. Você edita TOMLs; o vello cuida da fiação.">
+           data-en-html="The stack is two Docker containers (llama-server on CUDA, Open WebUI as the chat UI) and a Rust CLI on the host. Three TOML files describe your hardware, machine preferences and the model catalog; <code>vello apply</code> merges them into the <code>.env</code> that <code>docker compose</code> reads. You edit TOMLs; vello does the wiring."
+           data-pt-html="A stack é composta de dois containers Docker (llama-server com CUDA, Open WebUI como UI de chat) e uma CLI Rust no host. Três arquivos TOML descrevem seu hardware, preferências da máquina e o catálogo de modelos; o <code>vello apply</code> mescla tudo no <code>.env</code> que o <code>docker compose</code> lê. Você edita TOMLs; o vello cuida da fiação.">
         </p>
       </div>
 
@@ -1545,26 +1300,106 @@
   </section>
 
   <!-- ============================================================
+       INSTALL
+       ============================================================ -->
+  <section id="install">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-eyebrow" data-en="Installation" data-pt="Instalação">Installation</div>
+        <h2 data-en="From clone to chat in five steps."
+            data-pt="Do clone ao chat em cinco passos.">
+        </h2>
+        <p class="section-lede"
+           data-en="The installer runs once and bootstraps the host: prerequisites, NVIDIA Container Toolkit, llama-server image, Rust toolchain, and the vello binary on your PATH. Daily use after that is a single binary."
+           data-pt="O installer roda uma vez e prepara o host: pré-requisitos, NVIDIA Container Toolkit, imagem do llama-server, toolchain Rust e o binário vello no seu PATH. Depois disso, o dia-a-dia é só o binário.">
+        </p>
+      </div>
+
+      <div class="timeline reveal">
+
+        <div class="step">
+          <div class="step-num">01</div>
+          <div class="step-body">
+            <div class="step-title" data-en="Clone the repo" data-pt="Clone o repositório"></div>
+            <p class="step-desc"
+               data-en="Grab the source. The installer lives in here."
+               data-pt="Pegue o código. O installer mora aqui dentro."></p>
+            <div class="step-cmd"><span class="pmt">$</span> git clone <span class="str">https://github.com/Colgate13/vello-llama.git</span>
+<span class="pmt">$</span> <span class="kw">cd</span> vello-llama</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">02</div>
+          <div class="step-body">
+            <div class="step-title" data-en="Run the installer (once)" data-pt="Rode o installer (uma vez)"></div>
+            <p class="step-desc"
+               data-en="Verifies prerequisites, installs the NVIDIA Container Toolkit, builds the llama-server image, sets up the Rust toolchain, and exposes vello on your PATH. Takes ~12–20 min."
+               data-pt="Verifica pré-requisitos, instala o NVIDIA Container Toolkit, compila a imagem do llama-server, prepara o Rust e expõe o vello no seu PATH. Leva ~12–20 min."></p>
+            <div class="step-cmd"><span class="pmt">$</span> ./vello-installer install</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">03</div>
+          <div class="step-body">
+            <div class="step-title" data-en="Pick a model for your hardware" data-pt="Escolha um modelo pra sua máquina"></div>
+            <p class="step-desc"
+               data-en-html="<code>recommend</code> ranks the catalog for your GPU and prints suggestions for a use case. <code>install</code> picks a quantization that fits, downloads the GGUF and writes the <code>.env</code>."
+               data-pt-html="<code>recommend</code> ranqueia o catálogo pra sua GPU e imprime sugestões pra um caso de uso. <code>install</code> escolhe uma quantização que cabe, baixa o GGUF e escreve o <code>.env</code>."></p>
+            <div class="step-cmd"><span class="pmt">$</span> vello recommend chat
+<span class="pmt">$</span> vello install qwen3-8b</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">04</div>
+          <div class="step-body">
+            <div class="step-title" data-en="Boot the stack" data-pt="Suba o stack"></div>
+            <p class="step-desc"
+               data-en="Starts llama-server (CUDA) and Open WebUI. First boot takes 1–3 min while the model is mmapped onto the GPU."
+               data-pt="Sobe o llama-server (CUDA) e o Open WebUI. O primeiro boot leva 1–3 min enquanto o modelo é mmapped pra GPU."></p>
+            <div class="step-cmd"><span class="pmt">$</span> vello up
+<span class="pmt">$</span> vello health   <span class="cmt"># is the API up?</span></div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">05</div>
+          <div class="step-body">
+            <div class="step-title" data-en="Open the chat" data-pt="Abra o chat"></div>
+            <p class="step-desc"
+               data-en="Open WebUI is wired to llama-server inside the Docker network. No login required by default."
+               data-pt="O Open WebUI já está conectado ao llama-server dentro da rede Docker. Não pede login por padrão."></p>
+            <div class="step-cmd"><span class="pmt">$</span> xdg-open <span class="str">http://localhost:3000</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
        CATALOG
        ============================================================ -->
   <section id="catalog">
     <div class="container">
       <div class="reveal">
-        <div class="section-eyebrow" data-en="The catalog" data-pt="O catálogo">The catalog</div>
-        <h2 data-en="Curated picks. Ours, yours, theirs."
-            data-pt="Catálogos curados. O nosso, o seu, o deles."></h2>
+        <div class="section-eyebrow" data-en="Catalogs" data-pt="Catálogos">Catalogs</div>
+        <h2 data-en="A catalog is a TOML list of models."
+            data-pt="Um catálogo é uma lista TOML de modelos."></h2>
         <p class="section-lede"
-           data-en="The default catalog targets mid- and low-end consumer GPUs (8–24 GB VRAM) — what most developers actually have. For beefier rigs or niche use cases, drop in a community catalog or write your own. vello merges them all into a single vello list."
-           data-pt="O catálogo padrão é feito pra GPUs de consumidor de médio/baixo porte (8–24 GB de VRAM) — o que a maioria dos devs realmente tem. Pra máquinas parrudas ou casos específicos, importe um catálogo da comunidade ou crie o seu. O vello mescla tudo num único vello list.">
+           data-en-html="Each entry describes a model family, where to download the GGUF (HuggingFace mirror, file pattern), which quantizations exist and any runtime hints (context length, MoE settings, vision projector). vello reads every catalog under <code>catalogs/</code>, merges them, and exposes the result as a single list with <code>vello list</code>."
+           data-pt-html="Cada entrada descreve uma família de modelos, onde baixar o GGUF (mirror no HuggingFace, padrão de arquivo), quais quantizações existem e dicas de runtime (tamanho de contexto, MoE, projetor de visão). O vello lê todo catálogo dentro de <code>catalogs/</code>, mescla tudo e expõe o resultado num único <code>vello list</code>.">
         </p>
       </div>
 
       <div class="reveal">
-        <h3 class="sub-h" data-en="How vello scores any model — your hardware, computed live"
-                          data-pt="Como o vello classifica qualquer modelo — calculado ao vivo pelo seu hardware"></h3>
+        <h3 class="sub-h" data-en="Tiers are computed live for your hardware"
+                          data-pt="Os tiers são calculados ao vivo pra sua máquina"></h3>
         <p class="section-lede" style="margin-bottom: 20px;"
-           data-en-html="Tiers are not stored in catalogs — they're recomputed for your machine on every <code>vello list</code>. A model that's tier B on a 4060 may be tier S on a 4090."
-           data-pt-html="Os tiers não ficam armazenados nos catálogos — são recalculados pra sua máquina a cada <code>vello list</code>. Um modelo tier B numa 4060 pode ser tier S numa 4090.">
+           data-en-html="A catalog file does not store a tier — vello reads <code>profile.toml</code> (your VRAM/RAM) plus the model's size and quant, and recomputes the tier on every <code>vello list</code>. A model that is B on a 4060 8 GB may be S on a 4090 24 GB."
+           data-pt-html="Um catálogo não guarda tier — o vello lê o <code>profile.toml</code> (seu VRAM/RAM) junto com o tamanho e o quant do modelo e recalcula o tier a cada <code>vello list</code>. Um modelo B numa 4060 8 GB pode virar S numa 4090 24 GB.">
         </p>
 
         <table class="tier-table">
@@ -1596,23 +1431,123 @@
       </div>
 
       <div class="reveal">
-        <h3 class="sub-h" data-en="Available catalogs" data-pt="Catálogos disponíveis"></h3>
+        <h3 class="sub-h" data-en="What ships in the default catalog"
+                          data-pt="O que vem no catálogo padrão"></h3>
+        <p class="section-lede" style="margin-bottom: 20px;"
+           data-en-html="<code>catalogs/default.toml</code> is maintained in the repo. Models are grouped by tag — <code>chat</code>, <code>code</code>, <code>vision</code>, <code>reasoning</code>, <code>tools</code>, <code>multilingual</code> — and most have multiple quantizations so vello can pick the one that fits."
+           data-pt-html="O <code>catalogs/default.toml</code> é mantido no repo. Os modelos são agrupados por tag — <code>chat</code>, <code>code</code>, <code>vision</code>, <code>reasoning</code>, <code>tools</code>, <code>multilingual</code> — e quase todos têm várias quantizações pra que o vello escolha a que cabe.">
+        </p>
 
+        <div class="cat-grid">
+          <div class="cat-card">
+            <div class="cat-head">
+              <span class="cat-name" data-en="chat · tools" data-pt="chat · tools">chat · tools</span>
+            </div>
+            <p class="cat-desc"
+               data-en="General-purpose conversation, instruction following, function calling. Qwen 3, Llama 3.1, Mistral Nemo, Hermes 3, Phi-4 mini."
+               data-pt="Conversa geral, seguir instruções, function calling. Qwen 3, Llama 3.1, Mistral Nemo, Hermes 3, Phi-4 mini."></p>
+          </div>
+
+          <div class="cat-card">
+            <div class="cat-head">
+              <span class="cat-name" data-en="code" data-pt="code">code</span>
+            </div>
+            <p class="cat-desc"
+               data-en="Code completion and chat for programming. Qwen 2.5 Coder 7B/14B, Qwen 3 Coder 30B-A3B (MoE), DeepSeek-Coder-V2-Lite."
+               data-pt="Autocomplete e chat pra programar. Qwen 2.5 Coder 7B/14B, Qwen 3 Coder 30B-A3B (MoE), DeepSeek-Coder-V2-Lite."></p>
+          </div>
+
+          <div class="cat-card">
+            <div class="cat-head">
+              <span class="cat-name" data-en="vision · multimodal" data-pt="visão · multimodal">vision · multimodal</span>
+            </div>
+            <p class="cat-desc"
+               data-en="Image understanding and OCR. Qwen 2.5 VL 7B, MiniCPM-V 2.6, Gemma 3 4B/12B. Vision projectors are downloaded automatically."
+               data-pt="Entender imagens e OCR. Qwen 2.5 VL 7B, MiniCPM-V 2.6, Gemma 3 4B/12B. Os projetores de visão são baixados automaticamente."></p>
+          </div>
+
+          <div class="cat-card">
+            <div class="cat-head">
+              <span class="cat-name" data-en="reasoning · thinking" data-pt="reasoning · pensamento">reasoning · thinking</span>
+            </div>
+            <p class="cat-desc"
+               data-en="Step-by-step reasoning models. DeepSeek-R1 distills (1.5B/7B/8B/14B), QwQ 32B, Phi-4 14B."
+               data-pt="Modelos de raciocínio passo a passo. DeepSeek-R1 distills (1.5B/7B/8B/14B), QwQ 32B, Phi-4 14B."></p>
+          </div>
+
+          <div class="cat-card">
+            <div class="cat-head">
+              <span class="cat-name" data-en="multilingual / pt-br" data-pt="multilíngue / pt-br">multilingual / pt-br</span>
+            </div>
+            <p class="cat-desc"
+               data-en="Models with stronger non-English performance, including Portuguese. Aya Expanse 8B, Qwen 3, Mistral Nemo."
+               data-pt="Modelos com melhor desempenho fora do inglês, inclusive português. Aya Expanse 8B, Qwen 3, Mistral Nemo."></p>
+          </div>
+
+          <div class="cat-card">
+            <div class="cat-head">
+              <span class="cat-name" data-en="small · fast" data-pt="pequeno · rápido">small · fast</span>
+            </div>
+            <p class="cat-desc"
+               data-en="For very low VRAM, embedded use, or 100+ tok/s. Llama 3.2 3B, Phi-4 mini 3.8B, DeepSeek-R1 distill 1.5B."
+               data-pt="Pra VRAM bem baixa, uso embarcado ou 100+ tok/s. Llama 3.2 3B, Phi-4 mini 3.8B, DeepSeek-R1 distill 1.5B."></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal">
+        <h3 class="sub-h" data-en="Browsing and filtering the catalog"
+                          data-pt="Navegando e filtrando o catálogo"></h3>
+        <div class="codeblock">
+          <button class="copy" data-en="Copy" data-pt="Copiar">Copy</button>
+<pre><span class="cmt"># <span data-en="every model from every loaded catalog" data-pt="todos os modelos de todos os catálogos carregados">every model from every loaded catalog</span></span>
+vello list
+
+<span class="cmt"># <span data-en="rank for a use case (chat / code / vision / reasoning / tools)" data-pt="ranqueia pra um caso de uso (chat / code / vision / reasoning / tools)">rank for a use case (chat / code / vision / reasoning / tools)</span></span>
+vello recommend code
+
+<span class="cmt"># <span data-en="install one — vello picks the quant that fits your VRAM" data-pt="instala um — o vello escolhe o quant que cabe na sua VRAM">install one — vello picks the quant that fits your VRAM</span></span>
+vello install qwen2.5-coder-14b
+
+<span class="cmt"># <span data-en="show details for a model" data-pt="mostra detalhes do modelo">show details for a model</span></span>
+vello info qwen2.5-coder-14b</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       COMMUNITY CATALOGS
+       ============================================================ -->
+  <section id="community">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-eyebrow" data-en="Community catalogs" data-pt="Catálogos da comunidade">Community catalogs</div>
+        <h2 data-en="Bring your own list, or share one."
+            data-pt="Traga sua própria lista, ou compartilhe uma."></h2>
+        <p class="section-lede"
+           data-en-html="Anyone can write a catalog. Want a 24 GB tier with 32B models? A list focused on a specific language, niche fine-tunes, or your team's internal picks? Drop a TOML file under <code>catalogs/user/</code> (or use <code>vello catalog add</code>) and it joins the merged <code>vello list</code>. On conflicts, the official default wins."
+           data-pt-html="Qualquer pessoa pode escrever um catálogo. Quer um tier de 24 GB com modelos 32B? Uma lista focada em um idioma, fine-tunes específicos ou as escolhas internas do seu time? Coloque um TOML em <code>catalogs/user/</code> (ou use <code>vello catalog add</code>) e ele entra no <code>vello list</code> mesclado. Em conflito, o oficial vence.">
+        </p>
+      </div>
+
+      <div class="reveal">
+        <h3 class="sub-h" data-en="Listed catalogs" data-pt="Catálogos listados"></h3>
         <div class="cat-grid">
           <div class="cat-card">
             <div class="cat-head">
               <span class="cat-name">default</span>
               <span class="badge official" data-en="Official" data-pt="Oficial"></span>
             </div>
-            <div class="cat-meta" data-en="ships with vello · maintained by the project"
-                                  data-pt="vem com o vello · mantido pelo projeto"></div>
+            <div class="cat-meta" data-en="ships with vello · in catalogs/default.toml"
+                                  data-pt="vem com o vello · em catalogs/default.toml"></div>
             <p class="cat-desc"
-               data-en="Models that actually run well on 8–24 GB consumer GPUs. Quants up to Q5_K_M, MoE picks where they make sense, vision projectors wired in, all tested on hardware most people have."
-               data-pt="Modelos que rodam bem em GPUs de consumidor de 8–24 GB. Quants até Q5_K_M, escolhas MoE onde faz sentido, projetores de visão já configurados, tudo testado em hardware que a maioria das pessoas tem."></p>
+               data-en="The starter list. ~30 model families covering chat, code, vision, reasoning and small/fast picks for 8–24 GB GPUs."
+               data-pt="A lista inicial. ~30 famílias de modelos cobrindo chat, código, visão, reasoning e modelos pequenos/rápidos pra GPUs de 8–24 GB."></p>
             <div class="cat-tags">
               <span class="cat-tag">8–24 GB VRAM</span>
-              <span class="cat-tag" data-en="chat · code · tools · vision"
-                                    data-pt="chat · código · tools · visão"></span>
+              <span class="cat-tag" data-en="chat · code · vision · reasoning"
+                                    data-pt="chat · código · visão · reasoning"></span>
             </div>
           </div>
 
@@ -1622,8 +1557,8 @@
               <span class="badge community" data-en="Community" data-pt="Comunidade"></span>
             </div>
             <div class="cat-empty">
-              <div data-en="No community catalogs listed yet — be the first."
-                   data-pt="Nenhum catálogo da comunidade listado ainda — seja o primeiro."></div>
+              <div data-en="No community catalogs listed yet — open a PR or an issue to add yours."
+                   data-pt="Nenhum catálogo da comunidade listado ainda — abra um PR ou uma issue pra incluir o seu."></div>
               <div class="cta-line">
                 <a href="https://github.com/Colgate13/vello-llama/issues/new?title=Add%20community%20catalog&amp;body=Catalog%20name%3A%0AMaintainer%3A%0ARepo%2FURL%3A%0AFocus%20%28hardware%2C%20use%20case%29%3A"
                    target="_blank" rel="noopener"
@@ -1635,27 +1570,145 @@
       </div>
 
       <div class="reveal">
-        <h3 class="sub-h" data-en="Importing a catalog" data-pt="Importando um catálogo"></h3>
-        <p class="section-lede" style="margin-bottom: 20px;"
-           data-en-html="A catalog is a single TOML file. Drop it in <code>catalogs/user/</code> or use <code>vello catalog add</code> — vello validates the schema before merging it into <code>vello list</code>."
-           data-pt-html="Um catálogo é um arquivo TOML único. Coloque em <code>catalogs/user/</code> ou use <code>vello catalog add</code> — o vello valida o schema antes de mesclar tudo em <code>vello list</code>.">
-        </p>
-
+        <h3 class="sub-h" data-en="Adding a catalog" data-pt="Adicionando um catálogo"></h3>
         <div class="codeblock">
           <button class="copy" data-en="Copy" data-pt="Copiar">Copy</button>
 <pre><span class="cmt"># <span data-en="grab a catalog file from someone you trust" data-pt="pegue um catálogo de alguém em quem você confia">grab a catalog file from someone you trust</span></span>
 curl -O <span class="str">https://example.com/their-catalog.toml</span>
 
-<span class="cmt"># <span data-en="add it — schema is validated, conflicts resolve to default" data-pt="adicione — o schema é validado, conflitos vencem pra default">add it — schema is validated, conflicts resolve to default</span></span>
+<span class="cmt"># <span data-en="add it — vello validates the schema and copies it to catalogs/user/" data-pt="adicione — o vello valida o schema e copia pra catalogs/user/">add it — vello validates the schema and copies it to catalogs/user/</span></span>
 vello catalog add <span class="str">./their-catalog.toml</span>
 
-<span class="cmt"># <span data-en="see what's loaded, browse merged models" data-pt="veja o que está carregado, navegue pelos modelos mesclados">see what's loaded, browse merged models</span></span>
+<span class="cmt"># <span data-en="list loaded catalogs / browse merged models" data-pt="liste catálogos carregados / navegue pelos modelos mesclados">list loaded catalogs / browse merged models</span></span>
 vello catalog list
 vello list
 
-<span class="cmt"># <span data-en="changed your mind?" data-pt="mudou de ideia?">changed your mind?</span></span>
+<span class="cmt"># <span data-en="remove later by name" data-pt="remova depois pelo nome">remove later by name</span></span>
 vello catalog remove <span class="str">their-catalog</span></pre>
         </div>
+      </div>
+
+      <div class="reveal">
+        <h3 class="sub-h" data-en="Minimal catalog example" data-pt="Exemplo mínimo de catálogo"></h3>
+        <p class="section-lede" style="margin-bottom: 20px;"
+           data-en-html="A catalog is a single TOML file. Each <code>[[model]]</code> block declares a model and its quantizations. Optional <code>[model.runtime]</code> hints tune llama.cpp flags."
+           data-pt-html="Um catálogo é um único arquivo TOML. Cada bloco <code>[[model]]</code> declara um modelo e suas quantizações. <code>[model.runtime]</code> é opcional e ajusta flags do llama.cpp.">
+        </p>
+        <div class="codeblock">
+          <button class="copy" data-en="Copy" data-pt="Copiar">Copy</button>
+<pre><span class="cmt"># my-catalog.toml</span>
+name = <span class="str">"my-catalog"</span>
+version = <span class="str">"1"</span>
+
+[[model]]
+id          = <span class="str">"qwen3-8b"</span>
+family      = <span class="str">"qwen3"</span>
+params_b    = <span class="str">8.0</span>
+context     = <span class="str">32768</span>
+tags        = [<span class="str">"chat"</span>, <span class="str">"tools"</span>, <span class="str">"multilingual"</span>]
+description = <span class="str">"Qwen 3 8B. Strong tool calling."</span>
+
+  [model.files]
+  repo    = <span class="str">"bartowski/Qwen3-8B-GGUF"</span>
+  pattern = <span class="str">"Qwen3-8B-{quant}.gguf"</span>
+  quants  = [<span class="str">"Q4_K_M"</span>, <span class="str">"Q5_K_M"</span>, <span class="str">"Q6_K"</span>]
+
+  [model.runtime]
+  ctx_size = <span class="str">8192</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       USE CASES
+       ============================================================ -->
+  <section id="use-cases">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-eyebrow" data-en="Use cases" data-pt="Casos de uso">Use cases</div>
+        <h2 data-en="What people run vello for."
+            data-pt="Pra que as pessoas rodam o vello."></h2>
+        <p class="section-lede"
+           data-en="Every use case below is just a different model from the same catalog and the same OpenAI-compatible endpoint. Switch with one command — no re-install, no re-config."
+           data-pt="Cada caso de uso aqui é só um modelo diferente do mesmo catálogo, no mesmo endpoint compatível com OpenAI. Trocar é um comando — sem reinstalar, sem reconfigurar.">
+        </p>
+      </div>
+
+      <div class="why-grid reveal">
+
+        <div class="feat">
+          <div class="feat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+            </svg>
+          </div>
+          <h3 data-en="General chat" data-pt="Chat geral"></h3>
+          <p data-en-html="Open WebUI in the browser, talking to a generalist 7–8B model. Conversations are stored locally in <code>./openwebui-data/</code>."
+             data-pt-html="Open WebUI no navegador, conversando com um modelo generalista de 7–8B. As conversas ficam locais em <code>./openwebui-data/</code>."></p>
+          <div class="step-cmd" style="margin-top:14px;"><span class="pmt">$</span> vello install qwen3-8b</div>
+        </div>
+
+        <div class="feat">
+          <div class="feat-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+            </svg>
+          </div>
+          <h3 data-en="Code assistant" data-pt="Assistente de código"></h3>
+          <p data-en-html="Plug a code-tuned model into Cursor, opencode or crush over the OpenAI API. Pre-baked client configs ship in <code>clients/</code>."
+             data-pt-html="Um modelo focado em código no Cursor, opencode ou crush via API OpenAI. As configs prontas de cliente estão em <code>clients/</code>."></p>
+          <div class="step-cmd" style="margin-top:14px;"><span class="pmt">$</span> vello install qwen3-coder-30b-a3b</div>
+        </div>
+
+        <div class="feat">
+          <div class="feat-icon purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <h3 data-en="Agents with tool calling" data-pt="Agentes com tool calling"></h3>
+          <p data-en="Native function calling for LangChain, LlamaIndex, your own scripts. Use Hermes 3, Qwen 3 or Llama 3.1 — they were trained for it."
+             data-pt="Function calling nativo pra LangChain, LlamaIndex, seus scripts. Use Hermes 3, Qwen 3 ou Llama 3.1 — foram treinados pra isso."></p>
+          <div class="step-cmd" style="margin-top:14px;"><span class="pmt">$</span> vello install hermes-3-8b</div>
+        </div>
+
+        <div class="feat">
+          <div class="feat-icon orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+            </svg>
+          </div>
+          <h3 data-en="Vision &amp; OCR" data-pt="Visão &amp; OCR"></h3>
+          <p data-en="Drop screenshots, photos or scans into the chat. Multimodal models read them — vello pulls the vision projector for you."
+             data-pt="Jogue screenshots, fotos ou scans no chat. Os modelos multimodais entendem — o vello baixa o projetor de visão sozinho."></p>
+          <div class="step-cmd" style="margin-top:14px;"><span class="pmt">$</span> vello install qwen2.5-vl-7b</div>
+        </div>
+
+        <div class="feat">
+          <div class="feat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+            </svg>
+          </div>
+          <h3 data-en="Step-by-step reasoning" data-pt="Raciocínio passo a passo"></h3>
+          <p data-en="DeepSeek-R1 distills and QwQ produce explicit chain-of-thought before the answer. Slower, more thorough."
+             data-pt="DeepSeek-R1 distills e QwQ pensam em voz alta antes de responder. Mais lento, mais detalhado."></p>
+          <div class="step-cmd" style="margin-top:14px;"><span class="pmt">$</span> vello install deepseek-r1-distill-qwen-14b</div>
+        </div>
+
+        <div class="feat">
+          <div class="feat-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+          </div>
+          <h3 data-en="Portuguese / multilingual" data-pt="Português / multilíngue"></h3>
+          <p data-en="Aya Expanse and Qwen 3 handle PT-BR, Spanish, Japanese and more without the English-bias of older Llamas."
+             data-pt="Aya Expanse e Qwen 3 lidam com PT-BR, espanhol, japonês e outros sem o viés de inglês das Llamas mais antigas."></p>
+          <div class="step-cmd" style="margin-top:14px;"><span class="pmt">$</span> vello install aya-expanse-8b</div>
+        </div>
+
       </div>
     </div>
   </section>
@@ -1666,12 +1719,12 @@ vello catalog remove <span class="str">their-catalog</span></pre>
   <section id="connect">
     <div class="container">
       <div class="reveal">
-        <div class="section-eyebrow" data-en="Connect anything" data-pt="Conecte qualquer coisa">Connect anything</div>
-        <h2 data-en="Talks the OpenAI API. Period."
-            data-pt="Fala a API da OpenAI. Pronto."></h2>
+        <div class="section-eyebrow" data-en="Connecting clients" data-pt="Conectando clientes">Connecting clients</div>
+        <h2 data-en="Anything that speaks the OpenAI API works."
+            data-pt="Qualquer cliente que fala a API da OpenAI funciona."></h2>
         <p class="section-lede"
-           data-en-html="Point any OpenAI-compatible client at <code>http://localhost:8080/v1</code>. The API key is ignored — pass any string. Pre-baked configs for Cursor, opencode and crush ship in <code>clients/</code>."
-           data-pt-html="Aponte qualquer cliente compatível com OpenAI pra <code>http://localhost:8080/v1</code>. A API key é ignorada — passe qualquer string. Configs prontas pra Cursor, opencode e crush vêm em <code>clients/</code>.">
+           data-en-html="llama-server exposes a standard OpenAI endpoint at <code>http://localhost:8080/v1</code>. The API key is ignored — pass any string. Pre-baked configs for Cursor, opencode and crush ship in <code>clients/</code>."
+           data-pt-html="O llama-server expõe um endpoint OpenAI padrão em <code>http://localhost:8080/v1</code>. A API key é ignorada — passe qualquer string. Configs prontas pra Cursor, opencode e crush vêm em <code>clients/</code>.">
         </p>
       </div>
 
