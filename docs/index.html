@@ -1,0 +1,2089 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>vello — self-hosted LLMs on your GPU</title>
+  <meta name="description" content="One installer, one CLI, one Web UI. Run open-weight LLMs locally on consumer GPUs. No cloud, no API key, no telemetry.">
+  <meta name="theme-color" content="#080c11">
+
+  <meta property="og:title" content="vello — self-hosted LLMs on your GPU">
+  <meta property="og:description" content="One installer, one CLI, one Web UI. No cloud, no API key, no telemetry.">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23080c11'/><text x='16' y='22' text-anchor='middle' font-family='ui-monospace,Menlo,monospace' font-size='18' font-weight='700' fill='%237ee787'>v</text></svg>">
+
+  <style>
+    /* =========================================================
+       Tokens
+       ========================================================= */
+    :root {
+      --bg: #080c11;
+      --bg-soft: #0c1218;
+      --surface: #11171f;
+      --surface-2: #0d141c;
+      --border: #1c242f;
+      --border-2: #2a3340;
+      --border-3: #3a4554;
+      --fg: #e8eef5;
+      --fg-2: #b1bac4;
+      --fg-3: #7d8590;
+
+      --green: #7ee787;
+      --green-dim: rgba(126, 231, 135, 0.14);
+      --green-line: rgba(126, 231, 135, 0.35);
+      --blue: #79c0ff;
+      --blue-dim: rgba(121, 192, 255, 0.12);
+      --orange: #ffa657;
+      --pink: #ff7b72;
+      --purple: #d2a8ff;
+
+      --mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+      --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
+
+      --radius: 12px;
+      --radius-sm: 8px;
+      --max: 1120px;
+      --t: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: 0s !important;
+        transition-duration: 0s !important;
+      }
+    }
+    html, body { margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      overflow-x: hidden;
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(126, 231, 135, 0.10), transparent 70%),
+        radial-gradient(ellipse 60% 40% at 95% 15%, rgba(121, 192, 255, 0.06), transparent 70%),
+        radial-gradient(ellipse 50% 30% at 5% 25%, rgba(210, 168, 255, 0.04), transparent 70%);
+    }
+
+    a { color: var(--blue); text-decoration: none; transition: color var(--t); }
+    a:hover { color: var(--green); }
+
+    code, pre, kbd, samp { font-family: var(--mono); }
+    code:not(pre code) {
+      background: var(--surface-2);
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-size: 0.92em;
+      border: 1px solid var(--border);
+      color: var(--fg);
+    }
+
+    .container {
+      max-width: var(--max);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* =========================================================
+       Scroll progress
+       ========================================================= */
+    #progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 2px;
+      width: 0;
+      background: linear-gradient(90deg, var(--green), var(--blue));
+      z-index: 100;
+      transition: width 0.05s linear;
+      box-shadow: 0 0 8px var(--green);
+    }
+
+    /* =========================================================
+       Header
+       ========================================================= */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      background: rgba(8, 12, 17, 0.75);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      height: 62px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 17px;
+      color: var(--fg);
+      letter-spacing: -0.01em;
+    }
+    .brand:hover { color: var(--green); }
+    .brand .dot {
+      position: relative;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 14px var(--green);
+    }
+    .brand .dot::after {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 50%;
+      border: 1px solid var(--green);
+      opacity: 0;
+      animation: pulse 2.4s ease-out infinite;
+    }
+    @keyframes pulse {
+      0%   { transform: scale(0.8); opacity: 0.7; }
+      100% { transform: scale(2.0); opacity: 0; }
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 22px;
+      flex: 1;
+    }
+    .nav-links a {
+      color: var(--fg-2);
+      font-size: 14px;
+      font-weight: 500;
+      position: relative;
+      padding: 4px 0;
+    }
+    .nav-links a:hover { color: var(--fg); }
+    .nav-links a.active { color: var(--green); }
+    .nav-links a.active::after {
+      content: '';
+      position: absolute;
+      left: 0; right: 0; bottom: -2px;
+      height: 2px;
+      background: var(--green);
+      border-radius: 1px;
+    }
+
+    .lang-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border-2);
+      border-radius: 7px;
+      overflow: hidden;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .lang-toggle button {
+      background: transparent;
+      color: var(--fg-3);
+      border: none;
+      padding: 5px 11px;
+      cursor: pointer;
+      font: inherit;
+      transition: color var(--t), background var(--t);
+    }
+    .lang-toggle button:hover { color: var(--fg); }
+    .lang-toggle button.active {
+      background: var(--green-dim);
+      color: var(--green);
+    }
+    .lang-toggle button + button { border-left: 1px solid var(--border-2); }
+
+    .ghbtn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--fg);
+      border: 1px solid var(--border-2);
+      padding: 7px 14px;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: border-color var(--t), color var(--t), transform var(--t);
+    }
+    .ghbtn:hover {
+      border-color: var(--green-line);
+      color: var(--green);
+      transform: translateY(-1px);
+    }
+
+    /* =========================================================
+       Hero
+       ========================================================= */
+    .hero {
+      position: relative;
+      padding: 84px 0 72px;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(126, 231, 135, 0.06) 1px, transparent 1.5px);
+      background-size: 28px 28px;
+      mask-image: linear-gradient(180deg, transparent, black 10%, black 70%, transparent);
+      -webkit-mask-image: linear-gradient(180deg, transparent, black 10%, black 70%, transparent);
+      pointer-events: none;
+      opacity: 0.55;
+    }
+    .hero-grid {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 56px;
+      align-items: center;
+    }
+    @media (max-width: 920px) {
+      .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.10em;
+      color: var(--green);
+      text-transform: uppercase;
+      margin-bottom: 22px;
+      padding: 6px 12px;
+      border: 1px solid var(--green-line);
+      background: var(--green-dim);
+      border-radius: 999px;
+    }
+    .eyebrow .dot-mini {
+      width: 6px; height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--green);
+    }
+
+    h1 {
+      font-size: clamp(38px, 6vw, 68px);
+      line-height: 1.04;
+      margin: 0 0 22px;
+      letter-spacing: -0.025em;
+      font-weight: 700;
+    }
+    h1 .accent {
+      color: var(--green);
+      background: linear-gradient(135deg, var(--green), #b6f5b7);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .lede {
+      font-size: clamp(16px, 1.7vw, 19px);
+      color: var(--fg-2);
+      max-width: 560px;
+      margin: 0 0 32px;
+    }
+
+    .cta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 36px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 24px;
+      border-radius: 9px;
+      font-weight: 600;
+      font-size: 15px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: transform var(--t), background var(--t), border-color var(--t), color var(--t), box-shadow var(--t);
+    }
+    .btn:hover { text-decoration: none; transform: translateY(-1px); }
+    .btn-primary {
+      background: var(--green);
+      color: #061015;
+      box-shadow: 0 8px 24px rgba(126, 231, 135, 0.18);
+    }
+    .btn-primary:hover {
+      background: #95f0a0;
+      color: #061015;
+      box-shadow: 0 12px 32px rgba(126, 231, 135, 0.30);
+    }
+    .btn-secondary {
+      background: transparent;
+      color: var(--fg);
+      border-color: var(--border-2);
+    }
+    .btn-secondary:hover {
+      border-color: var(--green-line);
+      color: var(--green);
+    }
+
+    /* Hero stats strip */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0;
+      margin-top: 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: rgba(13, 20, 28, 0.5);
+      overflow: hidden;
+    }
+    .stat {
+      padding: 14px 16px;
+      border-right: 1px solid var(--border);
+    }
+    .stat:last-child { border-right: none; }
+    .stat-value {
+      font-family: var(--mono);
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--fg);
+      letter-spacing: -0.01em;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: var(--fg-3);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    @media (max-width: 600px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .stat:nth-child(2) { border-right: none; }
+      .stat:nth-child(1), .stat:nth-child(2) { border-bottom: 1px solid var(--border); }
+    }
+
+    /* Hero terminal */
+    .terminal {
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.55),
+        0 0 0 1px rgba(126, 231, 135, 0.06),
+        0 0 80px rgba(126, 231, 135, 0.05);
+      width: 100%;
+    }
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      padding: 11px 14px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      gap: 8px;
+    }
+    .tdot { width: 12px; height: 12px; border-radius: 50%; background: #3a3f47; }
+    .tdot.r { background: #ff5f56; }
+    .tdot.y { background: #ffbd2e; }
+    .tdot.g { background: #27c93f; }
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      color: var(--fg-3);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .terminal-body {
+      padding: 18px 22px 22px;
+      font-family: var(--mono);
+      font-size: 13.5px;
+      line-height: 1.7;
+      min-height: 280px;
+    }
+    .term-line { display: block; white-space: pre-wrap; word-break: break-word; }
+    .prompt { color: var(--green); }
+    .out-ok   { color: var(--green); }
+    .out-info { color: var(--fg-2); }
+    .out-warn { color: var(--orange); }
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 1.05em;
+      background: var(--green);
+      vertical-align: text-bottom;
+      animation: blink 1s steps(1) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* =========================================================
+       Section frame
+       ========================================================= */
+    section {
+      padding: 88px 0;
+      border-top: 1px solid var(--border);
+      position: relative;
+    }
+    .section-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.10em;
+      color: var(--fg-3);
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .section-eyebrow::before {
+      content: '◆';
+      color: var(--green);
+      font-size: 9px;
+    }
+    section h2 {
+      font-size: clamp(26px, 3.2vw, 36px);
+      margin: 0 0 12px;
+      letter-spacing: -0.018em;
+      font-weight: 700;
+      max-width: 760px;
+    }
+    section .section-lede {
+      color: var(--fg-2);
+      max-width: 660px;
+      margin: 0 0 44px;
+      font-size: 16px;
+    }
+
+    /* Reveal-on-scroll */
+    .reveal {
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* =========================================================
+       Why grid (with SVG icons)
+       ========================================================= */
+    .why-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+    }
+    .feat {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 26px;
+      transition: border-color var(--t), transform var(--t), box-shadow var(--t);
+      overflow: hidden;
+    }
+    .feat:hover {
+      border-color: var(--border-3);
+      transform: translateY(-3px);
+      box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.5);
+    }
+    .feat::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--green-line), transparent);
+      opacity: 0;
+      transition: opacity var(--t);
+    }
+    .feat:hover::before { opacity: 1; }
+
+    .feat-icon {
+      width: 40px; height: 40px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--green-dim);
+      color: var(--green);
+      border-radius: 9px;
+      margin-bottom: 16px;
+    }
+    .feat-icon.blue   { background: var(--blue-dim); color: var(--blue); }
+    .feat-icon.purple { background: rgba(210, 168, 255, 0.12); color: var(--purple); }
+    .feat-icon.orange { background: rgba(255, 166, 87, 0.12); color: var(--orange); }
+    .feat-icon svg { width: 20px; height: 20px; }
+
+    .feat h3 {
+      margin: 0 0 8px;
+      font-size: 16.5px;
+      letter-spacing: -0.005em;
+      font-weight: 600;
+    }
+    .feat p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--fg-2);
+      line-height: 1.6;
+    }
+
+    /* =========================================================
+       Trade-off (comparison) cards
+       ========================================================= */
+    .compare {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+    @media (max-width: 800px) {
+      .compare { grid-template-columns: 1fr; }
+    }
+    .compare-card {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 26px;
+      display: flex;
+      flex-direction: column;
+      transition: border-color var(--t), transform var(--t);
+    }
+    .compare-card:hover { border-color: var(--border-3); transform: translateY(-2px); }
+    .compare-card.featured {
+      border-color: var(--green-line);
+      background:
+        linear-gradient(180deg, rgba(126, 231, 135, 0.06), transparent 40%),
+        var(--surface);
+      box-shadow:
+        0 0 0 1px var(--green-line),
+        0 24px 60px -30px rgba(126, 231, 135, 0.30);
+    }
+    .compare-card.featured::after {
+      content: 'recommended';
+      position: absolute;
+      top: -10px;
+      right: 16px;
+      background: var(--green);
+      color: #061015;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 3px 10px;
+      border-radius: 999px;
+      text-transform: uppercase;
+    }
+    .compare-card[data-featured-label]::after {
+      content: attr(data-featured-label);
+    }
+    .compare-name {
+      font-family: var(--mono);
+      font-size: 14px;
+      color: var(--fg-3);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .compare-card.featured .compare-name { color: var(--green); }
+    .compare-headline {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 18px;
+      letter-spacing: -0.01em;
+    }
+    .compare-list {
+      list-style: none;
+      padding: 0;
+      margin: 0 0 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
+    .compare-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--fg-2);
+      line-height: 1.5;
+    }
+    .compare-list .ic {
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      margin-top: 3px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+    }
+    .compare-list .ic.yes { background: var(--green-dim); color: var(--green); }
+    .compare-list .ic.no  { background: rgba(255, 123, 114, 0.14); color: var(--pink); }
+
+    /* =========================================================
+       Quickstart timeline
+       ========================================================= */
+    .timeline {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 24px;
+      top: 28px;
+      bottom: 28px;
+      width: 1px;
+      background: linear-gradient(180deg, var(--green-line), var(--border));
+    }
+    .step {
+      position: relative;
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+    .step-num {
+      position: relative;
+      z-index: 2;
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--green);
+      transition: border-color var(--t), background var(--t), transform var(--t);
+    }
+    .step:hover .step-num {
+      border-color: var(--green-line);
+      background: var(--green-dim);
+      transform: scale(1.04);
+    }
+    .step-body {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      transition: border-color var(--t);
+    }
+    .step:hover .step-body { border-color: var(--border-2); }
+    .step-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0 0 4px;
+      color: var(--fg);
+    }
+    .step-desc {
+      color: var(--fg-2);
+      font-size: 14px;
+      margin: 0 0 12px;
+      line-height: 1.55;
+    }
+    .step-cmd {
+      font-family: var(--mono);
+      font-size: 13.5px;
+      color: var(--fg);
+      background: var(--surface-2);
+      padding: 11px 14px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      overflow-x: auto;
+      white-space: pre;
+    }
+    .step-cmd .pmt { color: var(--green); user-select: none; }
+    .step-cmd .cmt { color: var(--fg-3); }
+    .step-cmd .str { color: var(--blue); }
+
+    /* =========================================================
+       How it works (HTML diagram)
+       ========================================================= */
+    .diagram {
+      background:
+        radial-gradient(ellipse at 50% 50%, rgba(126, 231, 135, 0.04), transparent 70%),
+        var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 36px 24px;
+    }
+    .dia-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .dia-row + .dia-row { margin-top: 10px; }
+    .dia-box {
+      background: var(--surface-2);
+      border: 1px solid var(--border-2);
+      border-radius: 9px;
+      padding: 12px 18px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--fg);
+      min-width: 140px;
+      text-align: center;
+      transition: border-color var(--t), transform var(--t);
+    }
+    .dia-box:hover { border-color: var(--green-line); transform: translateY(-2px); }
+    .dia-box .dia-sub {
+      display: block;
+      font-size: 10.5px;
+      color: var(--fg-3);
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .dia-box.green { border-color: var(--green-line); background: var(--green-dim); color: var(--green); }
+    .dia-box.blue  { border-color: rgba(121, 192, 255, 0.35); background: var(--blue-dim); color: var(--blue); }
+    .dia-box.orange { border-color: rgba(255, 166, 87, 0.35); background: rgba(255, 166, 87, 0.08); color: var(--orange); }
+    .dia-arrow {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--fg-3);
+      letter-spacing: 0.04em;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .dia-arrow .arr { color: var(--green); font-weight: 700; }
+    .dia-down {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      color: var(--fg-3);
+      font-family: var(--mono);
+      font-size: 11px;
+      margin: 6px 0;
+    }
+    .dia-down .arr {
+      color: var(--green);
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .dia-fanout {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    @media (max-width: 700px) {
+      .dia-fanout { grid-template-columns: 1fr; }
+    }
+    .dia-divider {
+      text-align: center;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--fg-3);
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      margin: 22px 0 14px;
+      position: relative;
+    }
+    .dia-divider::before, .dia-divider::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      width: 80px;
+      height: 1px;
+      background: var(--border-2);
+    }
+    .dia-divider::before { left: calc(50% - 130px); }
+    .dia-divider::after  { right: calc(50% - 130px); }
+
+    /* =========================================================
+       Catalog
+       ========================================================= */
+    .sub-h {
+      font-size: 18px;
+      margin: 44px 0 14px;
+      letter-spacing: -0.005em;
+      color: var(--fg);
+      font-weight: 600;
+    }
+    .sub-h:first-child { margin-top: 0; }
+
+    .tier-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .tier-table th, .tier-table td {
+      text-align: left;
+      padding: 13px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tier-table tr:last-child td { border-bottom: none; }
+    .tier-table th {
+      font-weight: 600;
+      color: var(--fg-3);
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      background: var(--surface-2);
+    }
+    .tier {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .tier.s { background: rgba(126, 231, 135, 0.16); color: var(--green); }
+    .tier.a { background: rgba(121, 192, 255, 0.16); color: var(--blue); }
+    .tier.b { background: rgba(255, 166, 87, 0.16); color: var(--orange); }
+    .tier.c { background: rgba(210, 168, 255, 0.16); color: var(--purple); }
+    .tier.d { background: rgba(255, 123, 114, 0.14); color: var(--pink); }
+
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .cat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color var(--t), transform var(--t);
+    }
+    .cat-card:hover { border-color: var(--border-3); transform: translateY(-2px); }
+    .cat-card.placeholder {
+      border-style: dashed;
+      background: transparent;
+    }
+    .cat-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .cat-name {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--fg);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border-2);
+      color: var(--fg-3);
+      background: var(--surface-2);
+    }
+    .badge.official  { color: var(--green); border-color: var(--green-line); background: var(--green-dim); }
+    .badge.community { color: var(--blue);  border-color: rgba(121, 192, 255, 0.4); background: var(--blue-dim); }
+
+    .cat-meta {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--fg-3);
+    }
+    .cat-desc {
+      font-size: 14px;
+      color: var(--fg-2);
+      margin: 0;
+      line-height: 1.55;
+    }
+    .cat-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: auto;
+    }
+    .cat-tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--fg-3);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 5px;
+    }
+    .cat-empty {
+      text-align: center;
+      color: var(--fg-3);
+      font-size: 14px;
+      padding: 12px 0;
+    }
+    .cat-empty .cta-line {
+      margin-top: 12px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--fg-2);
+    }
+
+    /* =========================================================
+       Code blocks
+       ========================================================= */
+    .codeblock {
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .codeblock pre {
+      margin: 0;
+      padding: 22px 24px;
+      overflow-x: auto;
+      font-size: 13.5px;
+      line-height: 1.75;
+      color: var(--fg);
+    }
+    .codeblock .copy {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: var(--surface-2);
+      color: var(--fg-3);
+      border: 1px solid var(--border-2);
+      border-radius: 6px;
+      padding: 5px 11px;
+      font-size: 12px;
+      font-family: var(--mono);
+      cursor: pointer;
+      transition: color var(--t), border-color var(--t);
+    }
+    .codeblock .copy:hover { color: var(--green); border-color: var(--green-line); }
+    .codeblock .copy.copied { color: var(--green); border-color: var(--green-line); }
+    .cmt { color: var(--fg-3); }
+    .kw  { color: var(--pink); }
+    .str { color: var(--blue); }
+    .fn  { color: var(--purple); }
+
+    /* =========================================================
+       Tabs (Connect)
+       ========================================================= */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .tab {
+      background: transparent;
+      color: var(--fg-3);
+      border: none;
+      padding: 10px 16px;
+      font-family: var(--mono);
+      font-size: 13px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: color var(--t), border-color var(--t);
+    }
+    .tab:hover { color: var(--fg); }
+    .tab.active { color: var(--green); border-bottom-color: var(--green); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* =========================================================
+       FAQ
+       ========================================================= */
+    .faq details {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      margin-bottom: 10px;
+      overflow: hidden;
+      transition: border-color var(--t);
+    }
+    .faq details:hover { border-color: var(--border-2); }
+    .faq details[open] { border-color: var(--border-3); }
+    .faq summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 17px 22px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      color: var(--fg);
+    }
+    .faq summary::-webkit-details-marker { display: none; }
+    .faq summary::before {
+      content: '+';
+      color: var(--green);
+      font-family: var(--mono);
+      font-weight: 700;
+      width: 14px;
+      transition: transform 0.25s ease;
+      flex-shrink: 0;
+      font-size: 18px;
+    }
+    .faq details[open] summary::before {
+      content: '−';
+    }
+    .faq-body {
+      padding: 0 22px 18px 50px;
+      color: var(--fg-2);
+      animation: faqOpen 0.3s ease-out;
+    }
+    @keyframes faqOpen {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    /* =========================================================
+       Footer
+       ========================================================= */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 44px 0 56px;
+      color: var(--fg-3);
+      font-size: 13.5px;
+    }
+    footer .row {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 32px;
+    }
+    @media (max-width: 720px) {
+      footer .row { grid-template-columns: 1fr; gap: 24px; }
+    }
+    footer h4 {
+      font-size: 12px;
+      color: var(--fg);
+      margin: 0 0 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    footer ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    footer ul a { color: var(--fg-2); }
+    footer ul a:hover { color: var(--green); }
+    footer .credits {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 12.5px;
+    }
+
+    /* =========================================================
+       Responsive
+       ========================================================= */
+    @media (max-width: 720px) {
+      .nav-links { display: none; }
+      section { padding: 64px 0; }
+      .hero { padding: 56px 0 48px; }
+      .terminal-body { font-size: 13px; padding: 16px 18px; min-height: 240px; }
+      .step { grid-template-columns: 44px 1fr; gap: 14px; }
+      .step-num { width: 40px; height: 40px; font-size: 14px; }
+      .timeline::before { left: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<header>
+  <div class="container nav">
+    <a href="#top" class="brand"><span class="dot"></span>vello</a>
+    <nav class="nav-links">
+      <a href="#why" data-en="Why" data-pt="Por quê">Why</a>
+      <a href="#compare" data-en="Compare" data-pt="Comparar">Compare</a>
+      <a href="#quickstart" data-en="Quickstart" data-pt="Começo rápido">Quickstart</a>
+      <a href="#how" data-en="How it works" data-pt="Como funciona">How it works</a>
+      <a href="#catalog" data-en="Catalog" data-pt="Catálogo">Catalog</a>
+      <a href="#connect" data-en="Connect" data-pt="Conectar">Connect</a>
+      <a href="#faq" data-en="FAQ" data-pt="FAQ">FAQ</a>
+    </nav>
+    <div class="lang-toggle" role="tablist" aria-label="Language">
+      <button data-lang="en" class="active" aria-pressed="true">EN</button>
+      <button data-lang="pt" aria-pressed="false">PT</button>
+    </div>
+    <a class="ghbtn" href="https://github.com/Colgate13/vello-llama" target="_blank" rel="noopener">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-2.18c-3.2.7-3.87-1.37-3.87-1.37-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.25 3.34.96.1-.74.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18a10.95 10.95 0 0 1 5.74 0c2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.74.81 1.18 1.84 1.18 3.1 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.18c0 .31.21.68.8.56C20.21 21.39 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+      <span>GitHub</span>
+    </a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ============================================================
+       HERO
+       ============================================================ -->
+  <section class="hero" style="border-top: none;">
+    <div class="container">
+      <div class="hero-grid">
+
+        <div>
+          <span class="eyebrow">
+            <span class="dot-mini"></span>
+            <span data-en="self-hosted · gpu-native · openai-compatible"
+                  data-pt="self-hosted · roda na sua gpu · api openai">
+              self-hosted · gpu-native · openai-compatible
+            </span>
+          </span>
+
+          <h1 data-en-html="Run open LLMs on <span class=&quot;accent&quot;>your own GPU</span>."
+              data-pt-html="Rode LLMs abertos <span class=&quot;accent&quot;>na sua GPU</span>.">
+            Run open LLMs on <span class="accent">your own GPU</span>.
+          </h1>
+
+          <p class="lede"
+             data-en="One installer, one CLI, one Web UI. A curated catalog that auto-picks the right quantization for your hardware. No cloud, no API key, no telemetry — your conversations stay on your disk."
+             data-pt="Um installer, uma CLI, uma Web UI. Um catálogo curado que escolhe automaticamente a quantização certa pra sua máquina. Sem nuvem, sem API key, sem telemetria — suas conversas ficam no seu disco.">
+          </p>
+
+          <div class="cta">
+            <a class="btn btn-primary" href="#quickstart">
+              <span data-en="Get started" data-pt="Começar">Get started</span>
+              <span aria-hidden="true">→</span>
+            </a>
+            <a class="btn btn-secondary" href="https://github.com/Colgate13/vello-llama" target="_blank" rel="noopener">
+              <span data-en="View source" data-pt="Ver código">View source</span>
+              <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-value">29</div>
+              <div class="stat-label" data-en="Curated models" data-pt="Modelos curados"></div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">8 GB+</div>
+              <div class="stat-label" data-en="VRAM minimum" data-pt="VRAM mínimo"></div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">5</div>
+              <div class="stat-label" data-en="Commands to chat" data-pt="Comandos pro chat"></div>
+            </div>
+            <div class="stat">
+              <div class="stat-value">0</div>
+              <div class="stat-label" data-en="Telemetry" data-pt="Telemetria"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="terminal" aria-hidden="false">
+          <div class="terminal-bar">
+            <span class="tdot r"></span><span class="tdot y"></span><span class="tdot g"></span>
+            <span class="terminal-title">~/vello-llama — bash</span>
+          </div>
+          <div class="terminal-body" id="term"></div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       WHY
+       ============================================================ -->
+  <section id="why">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-eyebrow" data-en="Why vello" data-pt="Por que vello">Why vello</div>
+        <h2 data-en="Built for one job. Done well."
+            data-pt="Feito pra uma coisa só. Feito direito.">
+          Built for one job. Done well.
+        </h2>
+        <p class="section-lede"
+           data-en="Running open-weight LLMs on consumer GPUs and getting out of your way. No accounts, no dashboards, no surprises."
+           data-pt="Rodar LLMs abertos em GPUs de consumidor e sair do seu caminho. Sem contas, sem dashboards, sem surpresas.">
+        </p>
+      </div>
+
+      <div class="why-grid reveal">
+        <div class="feat">
+          <div class="feat-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 12h2m4 0h4"/><circle cx="9" cy="12" r="0.6" fill="currentColor"/>
+            </svg>
+          </div>
+          <h3 data-en="Hardware-aware catalog" data-pt="Catálogo ciente do hardware"></h3>
+          <p data-en="Models that actually fit 8–24 GB GPUs. Quantization picked from your VRAM and RAM, MoE offload tuned, vision projectors auto-pulled."
+             data-pt="Modelos que realmente cabem em GPUs de 8–24 GB. Quantização escolhida pelo seu VRAM e RAM, offload MoE ajustado, projetores de visão baixados sozinhos."></p>
+        </div>
+
+        <div class="feat">
+          <div class="feat-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 4h6v6"/><path d="M10 20H4v-6"/><path d="M20 4 14 10"/><path d="M4 20l6-6"/>
+            </svg>
+          </div>
+          <h3 data-en="OpenAI-compatible API" data-pt="API compatível com OpenAI"></h3>
+          <p data-en="Served at localhost:8080/v1. Cursor, Continue.dev, opencode, langchain, your own scripts — all of them work without changes."
+             data-pt="Servido em localhost:8080/v1. Cursor, Continue.dev, opencode, langchain, seus scripts — tudo funciona sem mudar nada."></p>
+        </div>
+
+        <div class="feat">
+          <div class="feat-icon purple">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 3h7v7"/><path d="M3 21l18-18"/><path d="M10 21H3v-7"/>
+            </svg>
+          </div>
+          <h3 data-en="No magic config" data-pt="Sem config mágico"></h3>
+          <p data-en="Three readable TOMLs feed a generator. The .env that Docker reads is rebuilt from them — never hand-edited, never out of sync."
+             data-pt="Três TOMLs legíveis alimentam um gerador. O .env que o Docker lê é reconstruído a partir deles — você nunca edita à mão, nunca fica fora de sincronia."></p>
+        </div>
+
+        <div class="feat">
+          <div class="feat-icon orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 12l2 2 4-4"/>
+            </svg>
+          </div>
+          <h3 data-en="Zero telemetry" data-pt="Zero telemetria"></h3>
+          <p data-en="No phone-home, no analytics, no accounts, no API keys. Models, conversations and configs all live on your disk. MIT licensed."
+             data-pt="Sem chamar pra casa, sem analytics, sem contas, sem API keys. Modelos, conversas e configs ficam todos no seu disco. Licença MIT."></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       COMPARE
+       ============================================================ -->
+  <section id="compare">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-eyebrow" data-en="The trade-off" data-pt="O trade-off">The trade-off</div>
+        <h2 data-en="Why not just use the cloud — or raw llama.cpp?"
+            data-pt="Por que não usar a nuvem — ou só o llama.cpp puro?">
+          Why not just use the cloud — or raw llama.cpp?
+        </h2>
+        <p class="section-lede"
+           data-en="Three honest paths to running an LLM. vello sits between the convenience of cloud APIs and the control of running it yourself, without the cost of either extreme."
+           data-pt="Três caminhos honestos pra rodar um LLM. O vello fica entre a conveniência de APIs em nuvem e o controle de rodar sozinho, sem o custo dos extremos.">
+        </p>
+      </div>
+
+      <div class="compare reveal">
+
+        <div class="compare-card">
+          <div class="compare-name" data-en="Cloud APIs" data-pt="APIs em nuvem">Cloud APIs</div>
+          <h3 class="compare-headline"
+              data-en="Convenient. Costly. Watched."
+              data-pt="Conveniente. Caro. Monitorado."></h3>
+          <ul class="compare-list">
+            <li><span class="ic yes">✓</span><span data-en="Zero install, ready in seconds"
+                                                   data-pt="Zero instalação, pronto em segundos"></span></li>
+            <li><span class="ic yes">✓</span><span data-en="State-of-the-art frontier models"
+                                                   data-pt="Modelos de ponta no estado da arte"></span></li>
+            <li><span class="ic no">✕</span><span data-en="Per-token cost adds up fast"
+                                                   data-pt="Custo por token soma rápido"></span></li>
+            <li><span class="ic no">✕</span><span data-en="Your prompts leave your machine"
+                                                   data-pt="Seus prompts saem da sua máquina"></span></li>
+            <li><span class="ic no">✕</span><span data-en="Rate limits, outages, model deprecations"
+                                                   data-pt="Rate limits, quedas, deprecação de modelos"></span></li>
+          </ul>
+        </div>
+
+        <div class="compare-card">
+          <div class="compare-name" data-en="Raw llama.cpp" data-pt="llama.cpp puro">Raw llama.cpp</div>
+          <h3 class="compare-headline"
+              data-en="Total control. Total work."
+              data-pt="Controle total. Trabalho total."></h3>
+          <ul class="compare-list">
+            <li><span class="ic yes">✓</span><span data-en="Full control over every flag"
+                                                   data-pt="Controle total de cada flag"></span></li>
+            <li><span class="ic yes">✓</span><span data-en="Local and private by default"
+                                                   data-pt="Local e privado por padrão"></span></li>
+            <li><span class="ic no">✕</span><span data-en="Hours of CUDA, drivers, build flags"
+                                                   data-pt="Horas de CUDA, drivers, flags de build"></span></li>
+            <li><span class="ic no">✕</span><span data-en="You pick quantization by hand"
+                                                   data-pt="Você escolhe a quantização à mão"></span></li>
+            <li><span class="ic no">✕</span><span data-en="No web UI, no catalog, no scaffolding"
+                                                   data-pt="Sem web UI, sem catálogo, sem andaime"></span></li>
+          </ul>
+        </div>
+
+        <div class="compare-card featured" data-featured-label="recommended"
+             data-featured-label-en="recommended" data-featured-label-pt="recomendado">
+          <div class="compare-name">vello</div>
+          <h3 class="compare-headline"
+              data-en="Convenient. Local. Free."
+              data-pt="Conveniente. Local. Grátis."></h3>
+          <ul class="compare-list">
+            <li><span class="ic yes">✓</span><span data-en="Five commands from clone to chat"
+                                                   data-pt="Cinco comandos do clone ao chat"></span></li>
+            <li><span class="ic yes">✓</span><span data-en="Auto-picks quantization for your GPU"
+                                                   data-pt="Escolhe a quantização certa pra sua GPU"></span></li>
+            <li><span class="ic yes">✓</span><span data-en="Web UI + OpenAI API included"
+                                                   data-pt="Web UI + API OpenAI inclusos"></span></li>
+            <li><span class="ic yes">✓</span><span data-en="Stays 100% on your machine"
+                                                   data-pt="Fica 100% na sua máquina"></span></li>
+            <li><span class="ic yes">✓</span><span data-en="MIT licensed, zero telemetry"
+                                                   data-pt="Licença MIT, zero telemetria"></span></li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       QUICKSTART
+       ============================================================ -->
+  <section id="quickstart">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-eyebrow" data-en="Quickstart" data-pt="Começo rápido">Quickstart</div>
+        <h2 data-en="From clone to chat in five steps."
+            data-pt="Do clone ao chat em cinco passos.">
+        </h2>
+        <p class="section-lede"
+           data-en="The installer runs once and bootstraps everything. After that, daily use is a single binary on your PATH."
+           data-pt="O installer roda uma vez e prepara tudo. Depois disso, o dia-a-dia é um único binário no seu PATH.">
+        </p>
+      </div>
+
+      <div class="timeline reveal">
+
+        <div class="step">
+          <div class="step-num">01</div>
+          <div class="step-body">
+            <div class="step-title" data-en="Clone the repo" data-pt="Clone o repositório"></div>
+            <p class="step-desc"
+               data-en="Grab the source. The installer lives in here."
+               data-pt="Pegue o código. O installer mora aqui dentro."></p>
+            <div class="step-cmd"><span class="pmt">$</span> git clone <span class="str">https://github.com/Colgate13/vello-llama.git</span>
+<span class="pmt">$</span> <span class="kw">cd</span> vello-llama</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">02</div>
+          <div class="step-body">
+            <div class="step-title" data-en="Run the installer (once)" data-pt="Rode o installer (uma vez)"></div>
+            <p class="step-desc"
+               data-en="Verifies prerequisites, installs the NVIDIA toolkit, builds the llama-server image, sets up the Rust toolchain, and exposes vello on your PATH. ~12–20 min."
+               data-pt="Verifica pré-requisitos, instala o NVIDIA toolkit, compila a imagem do llama-server, prepara o Rust e expõe o vello no seu PATH. ~12–20 min."></p>
+            <div class="step-cmd"><span class="pmt">$</span> ./vello-installer install</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">03</div>
+          <div class="step-body">
+            <div class="step-title" data-en="Pick a model for your hardware" data-pt="Escolha um modelo pra sua máquina"></div>
+            <p class="step-desc"
+               data-en="recommend ranks the catalog for your GPU. install picks the best quantization, downloads the GGUF, and writes the .env."
+               data-pt="recommend ranqueia o catálogo pra sua GPU. install escolhe a melhor quantização, baixa o GGUF e escreve o .env."></p>
+            <div class="step-cmd"><span class="pmt">$</span> vello recommend chat
+<span class="pmt">$</span> vello install qwen3-8b</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">04</div>
+          <div class="step-body">
+            <div class="step-title" data-en="Boot the stack" data-pt="Suba o stack"></div>
+            <p class="step-desc"
+               data-en="Starts llama-server (CUDA) and Open WebUI. First boot takes 1–3 min while the model is mmapped onto the GPU."
+               data-pt="Sobe o llama-server (CUDA) e o Open WebUI. O primeiro boot leva 1–3 min enquanto o modelo é mmapped pra GPU."></p>
+            <div class="step-cmd"><span class="pmt">$</span> vello up
+<span class="pmt">$</span> vello health   <span class="cmt"># is the API up?</span></div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">05</div>
+          <div class="step-body">
+            <div class="step-title" data-en="Open the chat" data-pt="Abra o chat"></div>
+            <p class="step-desc"
+               data-en="Open WebUI is wired to llama-server inside the Docker network. No login required by default."
+               data-pt="O Open WebUI já está conectado ao llama-server dentro da rede Docker. Não pede login por padrão."></p>
+            <div class="step-cmd"><span class="pmt">$</span> xdg-open <span class="str">http://localhost:3000</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       HOW IT WORKS
+       ============================================================ -->
+  <section id="how">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-eyebrow" data-en="How it works" data-pt="Como funciona">How it works</div>
+        <h2 data-en="Three TOMLs, one generated .env, two containers."
+            data-pt="Três TOMLs, um .env gerado, dois containers."></h2>
+        <p class="section-lede"
+           data-en-html="Hardware profile + machine prefs + curated catalog merge into the <code>.env</code> that <code>docker compose</code> consumes. You edit TOMLs; vello does the wiring."
+           data-pt-html="Perfil de hardware + preferências da máquina + catálogo curado se fundem no <code>.env</code> que o <code>docker compose</code> consome. Você edita TOMLs; o vello cuida da fiação.">
+        </p>
+      </div>
+
+      <div class="diagram reveal">
+
+        <div class="dia-row">
+          <div class="dia-box">
+            <span data-en="Browser" data-pt="Navegador">Browser</span>
+            <span class="dia-sub">:3000</span>
+          </div>
+          <div class="dia-arrow"><span class="arr">──►</span></div>
+          <div class="dia-box blue">
+            Open WebUI
+            <span class="dia-sub">docker</span>
+          </div>
+        </div>
+
+        <div class="dia-down">
+          <span class="arr">▼</span>
+          <span>/v1/chat/completions</span>
+        </div>
+
+        <div class="dia-row">
+          <div class="dia-box blue">
+            llama-server
+            <span class="dia-sub">docker · cuda</span>
+          </div>
+        </div>
+
+        <div class="dia-down">
+          <span class="arr">▼</span>
+          <span data-en="mmap + GPU upload" data-pt="mmap + upload pra GPU">mmap + GPU upload</span>
+        </div>
+
+        <div class="dia-row">
+          <div class="dia-box">
+            ./models/&lt;id&gt;.gguf
+            <span class="dia-sub" data-en="downloaded by vello" data-pt="baixado pelo vello">downloaded by vello</span>
+          </div>
+        </div>
+
+        <div class="dia-divider" data-en="controlled by" data-pt="controlado por">controlled by</div>
+
+        <div class="dia-row">
+          <div class="dia-box green">
+            vello
+            <span class="dia-sub" data-en="rust binary on PATH" data-pt="binário rust no PATH">rust binary on PATH</span>
+          </div>
+        </div>
+
+        <div class="dia-down">
+          <span class="arr">▲</span>
+          <span data-en="reads / generates" data-pt="lê / gera">reads / generates</span>
+        </div>
+
+        <div class="dia-fanout">
+          <div class="dia-box orange">
+            profile.toml
+            <span class="dia-sub" data-en="auto-detected" data-pt="auto-detectado">auto-detected</span>
+          </div>
+          <div class="dia-box orange">
+            system.toml
+            <span class="dia-sub" data-en="you edit" data-pt="você edita">you edit</span>
+          </div>
+          <div class="dia-box orange">
+            catalogs/*.toml
+            <span class="dia-sub" data-en="curated + community" data-pt="curado + comunidade">curated + community</span>
+          </div>
+        </div>
+
+        <div class="dia-down">
+          <span class="arr">▼</span>
+          <span>vello apply</span>
+        </div>
+
+        <div class="dia-row">
+          <div class="dia-box">
+            .env
+            <span class="dia-sub" data-en="generated · do not edit" data-pt="gerado · não edite">generated · do not edit</span>
+          </div>
+          <div class="dia-arrow"><span class="arr">──►</span></div>
+          <div class="dia-box">
+            docker compose up
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       CATALOG
+       ============================================================ -->
+  <section id="catalog">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-eyebrow" data-en="The catalog" data-pt="O catálogo">The catalog</div>
+        <h2 data-en="Curated picks. Ours, yours, theirs."
+            data-pt="Catálogos curados. O nosso, o seu, o deles."></h2>
+        <p class="section-lede"
+           data-en="The default catalog targets mid- and low-end consumer GPUs (8–24 GB VRAM) — what most developers actually have. For beefier rigs or niche use cases, drop in a community catalog or write your own. vello merges them all into a single vello list."
+           data-pt="O catálogo padrão é feito pra GPUs de consumidor de médio/baixo porte (8–24 GB de VRAM) — o que a maioria dos devs realmente tem. Pra máquinas parrudas ou casos específicos, importe um catálogo da comunidade ou crie o seu. O vello mescla tudo num único vello list.">
+        </p>
+      </div>
+
+      <div class="reveal">
+        <h3 class="sub-h" data-en="How vello scores any model — your hardware, computed live"
+                          data-pt="Como o vello classifica qualquer modelo — calculado ao vivo pelo seu hardware"></h3>
+        <p class="section-lede" style="margin-bottom: 20px;"
+           data-en-html="Tiers are not stored in catalogs — they're recomputed for your machine on every <code>vello list</code>. A model that's tier B on a 4060 may be tier S on a 4090."
+           data-pt-html="Os tiers não ficam armazenados nos catálogos — são recalculados pra sua máquina a cada <code>vello list</code>. Um modelo tier B numa 4060 pode ser tier S numa 4090.">
+        </p>
+
+        <table class="tier-table">
+          <thead>
+            <tr>
+              <th data-en="Tier" data-pt="Tier">Tier</th>
+              <th data-en="Means" data-pt="Significa">Means</th>
+              <th data-en="Throughput" data-pt="Velocidade">Throughput</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="tier s">S</span></td>
+                <td data-en="Fits 100% in VRAM" data-pt="Cabe 100% na VRAM"></td>
+                <td>30–60 tok/s</td></tr>
+            <tr><td><span class="tier a">A</span></td>
+                <td data-en="Mostly VRAM, light overflow" data-pt="Quase tudo na VRAM, overflow leve"></td>
+                <td>15–35 tok/s</td></tr>
+            <tr><td><span class="tier b">B</span></td>
+                <td data-en="MoE or significant CPU offload" data-pt="MoE ou offload pra CPU significativo"></td>
+                <td>5–25 tok/s</td></tr>
+            <tr><td><span class="tier c">C</span></td>
+                <td data-en="RAM-dominant" data-pt="Domina RAM"></td>
+                <td>1–5 tok/s</td></tr>
+            <tr><td><span class="tier d">D</span></td>
+                <td data-en="Won't fit at all" data-pt="Não cabe de jeito nenhum"></td>
+                <td data-en="skip" data-pt="pule"></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="reveal">
+        <h3 class="sub-h" data-en="Available catalogs" data-pt="Catálogos disponíveis"></h3>
+
+        <div class="cat-grid">
+          <div class="cat-card">
+            <div class="cat-head">
+              <span class="cat-name">default</span>
+              <span class="badge official" data-en="Official" data-pt="Oficial"></span>
+            </div>
+            <div class="cat-meta" data-en="ships with vello · maintained by the project"
+                                  data-pt="vem com o vello · mantido pelo projeto"></div>
+            <p class="cat-desc"
+               data-en="Models that actually run well on 8–24 GB consumer GPUs. Quants up to Q5_K_M, MoE picks where they make sense, vision projectors wired in, all tested on hardware most people have."
+               data-pt="Modelos que rodam bem em GPUs de consumidor de 8–24 GB. Quants até Q5_K_M, escolhas MoE onde faz sentido, projetores de visão já configurados, tudo testado em hardware que a maioria das pessoas tem."></p>
+            <div class="cat-tags">
+              <span class="cat-tag">8–24 GB VRAM</span>
+              <span class="cat-tag" data-en="chat · code · tools · vision"
+                                    data-pt="chat · código · tools · visão"></span>
+            </div>
+          </div>
+
+          <div class="cat-card placeholder">
+            <div class="cat-head">
+              <span class="cat-name" data-en="your catalog?" data-pt="seu catálogo?"></span>
+              <span class="badge community" data-en="Community" data-pt="Comunidade"></span>
+            </div>
+            <div class="cat-empty">
+              <div data-en="No community catalogs listed yet — be the first."
+                   data-pt="Nenhum catálogo da comunidade listado ainda — seja o primeiro."></div>
+              <div class="cta-line">
+                <a href="https://github.com/Colgate13/vello-llama/issues/new?title=Add%20community%20catalog&amp;body=Catalog%20name%3A%0AMaintainer%3A%0ARepo%2FURL%3A%0AFocus%20%28hardware%2C%20use%20case%29%3A"
+                   target="_blank" rel="noopener"
+                   data-en="Submit yours →" data-pt="Submeta o seu →"></a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal">
+        <h3 class="sub-h" data-en="Importing a catalog" data-pt="Importando um catálogo"></h3>
+        <p class="section-lede" style="margin-bottom: 20px;"
+           data-en-html="A catalog is a single TOML file. Drop it in <code>catalogs/user/</code> or use <code>vello catalog add</code> — vello validates the schema before merging it into <code>vello list</code>."
+           data-pt-html="Um catálogo é um arquivo TOML único. Coloque em <code>catalogs/user/</code> ou use <code>vello catalog add</code> — o vello valida o schema antes de mesclar tudo em <code>vello list</code>.">
+        </p>
+
+        <div class="codeblock">
+          <button class="copy" data-en="Copy" data-pt="Copiar">Copy</button>
+<pre><span class="cmt"># <span data-en="grab a catalog file from someone you trust" data-pt="pegue um catálogo de alguém em quem você confia">grab a catalog file from someone you trust</span></span>
+curl -O <span class="str">https://example.com/their-catalog.toml</span>
+
+<span class="cmt"># <span data-en="add it — schema is validated, conflicts resolve to default" data-pt="adicione — o schema é validado, conflitos vencem pra default">add it — schema is validated, conflicts resolve to default</span></span>
+vello catalog add <span class="str">./their-catalog.toml</span>
+
+<span class="cmt"># <span data-en="see what's loaded, browse merged models" data-pt="veja o que está carregado, navegue pelos modelos mesclados">see what's loaded, browse merged models</span></span>
+vello catalog list
+vello list
+
+<span class="cmt"># <span data-en="changed your mind?" data-pt="mudou de ideia?">changed your mind?</span></span>
+vello catalog remove <span class="str">their-catalog</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       CONNECT (tabs)
+       ============================================================ -->
+  <section id="connect">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-eyebrow" data-en="Connect anything" data-pt="Conecte qualquer coisa">Connect anything</div>
+        <h2 data-en="Talks the OpenAI API. Period."
+            data-pt="Fala a API da OpenAI. Pronto."></h2>
+        <p class="section-lede"
+           data-en-html="Point any OpenAI-compatible client at <code>http://localhost:8080/v1</code>. The API key is ignored — pass any string. Pre-baked configs for Cursor, opencode and crush ship in <code>clients/</code>."
+           data-pt-html="Aponte qualquer cliente compatível com OpenAI pra <code>http://localhost:8080/v1</code>. A API key é ignorada — passe qualquer string. Configs prontas pra Cursor, opencode e crush vêm em <code>clients/</code>.">
+        </p>
+      </div>
+
+      <div class="reveal">
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="py">Python</button>
+          <button class="tab" data-tab="js">Node / JS</button>
+          <button class="tab" data-tab="curl">curl</button>
+          <button class="tab" data-tab="cursor">Cursor</button>
+        </div>
+
+        <div class="codeblock">
+          <button class="copy" data-en="Copy" data-pt="Copiar">Copy</button>
+
+          <div class="tab-panel active" data-panel="py">
+<pre><span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+
+client = OpenAI(
+    base_url=<span class="str">"http://localhost:8080/v1"</span>,
+    api_key=<span class="str">"local"</span>,  <span class="cmt"># <span data-en="any string works" data-pt="qualquer string serve">any string works</span></span>
+)
+
+resp = client.chat.completions.create(
+    model=<span class="str">"qwen3-8b-local"</span>,
+    messages=[{<span class="str">"role"</span>: <span class="str">"user"</span>, <span class="str">"content"</span>: <span class="str">"Hi"</span>}],
+)
+<span class="fn">print</span>(resp.choices[<span class="str">0</span>].message.content)</pre>
+          </div>
+
+          <div class="tab-panel" data-panel="js">
+<pre><span class="kw">import</span> OpenAI <span class="kw">from</span> <span class="str">"openai"</span>;
+
+<span class="kw">const</span> client = <span class="kw">new</span> <span class="fn">OpenAI</span>({
+  baseURL: <span class="str">"http://localhost:8080/v1"</span>,
+  apiKey:  <span class="str">"local"</span>,
+});
+
+<span class="kw">const</span> resp = <span class="kw">await</span> client.chat.completions.<span class="fn">create</span>({
+  model:    <span class="str">"qwen3-8b-local"</span>,
+  messages: [{ role: <span class="str">"user"</span>, content: <span class="str">"Hi"</span> }],
+});
+<span class="fn">console</span>.log(resp.choices[<span class="str">0</span>].message.content);</pre>
+          </div>
+
+          <div class="tab-panel" data-panel="curl">
+<pre>curl <span class="str">http://localhost:8080/v1/chat/completions</span> \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{
+    "model": "qwen3-8b-local",
+    "messages": [{"role": "user", "content": "Hi"}]
+  }'</span></pre>
+          </div>
+
+          <div class="tab-panel" data-panel="cursor">
+<pre><span class="cmt"># <span data-en="Cursor → Settings → Models → Custom Model" data-pt="Cursor → Settings → Models → Custom Model">Cursor → Settings → Models → Custom Model</span></span>
+
+<span class="cmt"><span data-en="Provider:" data-pt="Provedor:">Provider:</span></span>  OpenAI Compatible
+<span class="cmt"><span data-en="Base URL:" data-pt="Base URL:">Base URL:</span></span>  <span class="str">http://localhost:8080/v1</span>
+<span class="cmt"><span data-en="API key:" data-pt="API key:">API key:</span></span>   <span class="str">local</span>
+<span class="cmt"><span data-en="Model:" data-pt="Modelo:">Model:</span></span>     <span class="str">qwen3-8b-local</span>
+
+<span class="cmt"># <span data-en="opencode and crush ship pre-baked configs:" data-pt="opencode e crush trazem configs prontas:">opencode and crush ship pre-baked configs:</span></span>
+cp clients/opencode.json ~/.config/opencode/
+cp clients/crush.json    ~/.config/crush/</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FAQ
+       ============================================================ -->
+  <section id="faq" class="faq">
+    <div class="container">
+      <div class="reveal">
+        <div class="section-eyebrow" data-en="FAQ" data-pt="Perguntas frequentes">FAQ</div>
+        <h2 data-en="Quick answers." data-pt="Respostas rápidas."></h2>
+        <p class="section-lede"
+           data-en-html="The full troubleshooting guide is in the <a href=&quot;https://github.com/Colgate13/vello-llama#troubleshooting&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>README</a>. These are the questions that come up first."
+           data-pt-html="O guia completo de troubleshooting está no <a href=&quot;https://github.com/Colgate13/vello-llama#troubleshooting&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>README</a>. Aqui ficam as dúvidas mais comuns.">
+        </p>
+      </div>
+
+      <div class="reveal">
+        <details>
+          <summary data-en="What hardware do I need?" data-pt="Que hardware eu preciso?"></summary>
+          <div class="faq-body"
+               data-en-html="An NVIDIA GPU with driver 550+ (CUDA 12.4 compatible), Linux (tested on Debian 13 and Ubuntu 22.04+), Docker with your user in the <code>docker</code> group, and ~17 GB of free disk for the image, Open WebUI, and a first model. <strong>8 GB of VRAM</strong> is enough to run 7–8B models comfortably."
+               data-pt-html="Uma GPU NVIDIA com driver 550+ (compatível com CUDA 12.4), Linux (testado em Debian 13 e Ubuntu 22.04+), Docker com seu usuário no grupo <code>docker</code>, e ~17 GB de disco livre pra imagem, Open WebUI e o primeiro modelo. <strong>8 GB de VRAM</strong> já roda modelos 7–8B confortavelmente.">
+          </div>
+        </details>
+
+        <details>
+          <summary data-en="Why does the first boot take a few minutes?"
+                   data-pt="Por que o primeiro boot demora alguns minutos?"></summary>
+          <div class="faq-body"
+               data-en-html="<code>docker compose up</code> returns as soon as containers are <em>created</em>, but two slow steps run after that: llama-server mmaps the GGUF and uploads layers to VRAM, then Open WebUI does its own first-time setup (embedding model + SQLite). Total: 1–3 min the first time, ~10–30 s after that."
+               data-pt-html="O <code>docker compose up</code> retorna assim que os containers são <em>criados</em>, mas duas etapas lentas rodam depois: o llama-server faz mmap do GGUF e sobe as layers pra VRAM, e o Open WebUI faz o setup de primeira execução (modelo de embedding + SQLite). Total: 1–3 min na primeira vez, ~10–30 s nas seguintes.">
+          </div>
+        </details>
+
+        <details>
+          <summary data-en="What if I don't have an RTX 40-series?"
+                   data-pt="E se eu não tiver uma RTX 40?"></summary>
+          <div class="faq-body"
+               data-en-html="Edit <code>CUDA_ARCH</code> in <code>docker-compose.yml</code> — <code>86</code> for 30-series Ampere, <code>75</code> for 20-series Turing, <code>89</code> for 40-series Ada (default) — then run <code>vello build</code> to rebuild the image."
+               data-pt-html="Edite o <code>CUDA_ARCH</code> em <code>docker-compose.yml</code> — <code>86</code> pra 30 (Ampere), <code>75</code> pra 20 (Turing), <code>89</code> pra 40 (Ada, padrão) — e rode <code>vello build</code> pra reconstruir a imagem.">
+          </div>
+        </details>
+
+        <details>
+          <summary data-en="Where does my data live?"
+                   data-pt="Onde meus dados ficam?"></summary>
+          <div class="faq-body"
+               data-en-html="Everything user-facing is bind-mounted to the host. Models go in <code>./models/</code>, Open WebUI conversations and settings in <code>./openwebui-data/</code>, configs in TOML files at the project root. <code>vello nuke</code> only removes containers and the image — your data stays."
+               data-pt-html="Tudo que é seu fica bind-mounted no host. Modelos em <code>./models/</code>, conversas e settings do Open WebUI em <code>./openwebui-data/</code>, configs em TOMLs na raiz do projeto. <code>vello nuke</code> só remove containers e a imagem — seus dados permanecem.">
+          </div>
+        </details>
+
+        <details>
+          <summary data-en="Is it really zero telemetry?"
+                   data-pt="É zero telemetria mesmo?"></summary>
+          <div class="faq-body"
+               data-en-html="vello itself makes no outbound calls beyond downloading model weights from HuggingFace and pulling the public Docker image for Open WebUI. No accounts, no analytics, no API keys required. The whole stack runs on localhost."
+               data-pt-html="O vello em si não faz chamadas externas além de baixar pesos do HuggingFace e puxar a imagem pública do Open WebUI no Docker. Sem contas, sem analytics, sem API key. O stack inteiro roda em localhost.">
+          </div>
+        </details>
+
+        <details>
+          <summary data-en="Can I switch models without losing my conversations?"
+                   data-pt="Posso trocar de modelo sem perder minhas conversas?"></summary>
+          <div class="faq-body"
+               data-en-html="Yes. Conversations live in <code>./openwebui-data/</code>; switching models only restarts <code>llama-server</code> with a new GGUF. <code>vello switch &lt;id&gt;</code> changes the active model in seconds (no re-download if it's already on disk)."
+               data-pt-html="Sim. Conversas ficam em <code>./openwebui-data/</code>; trocar de modelo só reinicia o <code>llama-server</code> com outro GGUF. <code>vello switch &lt;id&gt;</code> troca o ativo em segundos (sem re-download se o modelo já está no disco).">
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="container">
+    <div class="row">
+      <div>
+        <div class="brand" style="margin-bottom: 12px;"><span class="dot"></span>vello</div>
+        <div data-en="Self-hosted LLMs on your GPU. Curated, scripted, MIT licensed."
+             data-pt="LLMs self-hosted na sua GPU. Curado, automatizado, licença MIT.">
+        </div>
+      </div>
+      <div>
+        <h4 data-en="Project" data-pt="Projeto">Project</h4>
+        <ul>
+          <li><a href="https://github.com/Colgate13/vello-llama" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="https://github.com/Colgate13/vello-llama#readme" target="_blank" rel="noopener">README</a></li>
+          <li><a href="https://github.com/Colgate13/vello-llama/issues" target="_blank" rel="noopener" data-en="Issues" data-pt="Issues">Issues</a></li>
+          <li><a href="https://github.com/Colgate13/vello-llama/blob/main/LICENSE" target="_blank" rel="noopener">MIT license</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4 data-en="Built on" data-pt="Construído sobre">Built on</h4>
+        <ul>
+          <li><a href="https://github.com/ggml-org/llama.cpp" target="_blank" rel="noopener">llama.cpp</a></li>
+          <li><a href="https://github.com/open-webui/open-webui" target="_blank" rel="noopener">Open WebUI</a></li>
+          <li><a href="https://huggingface.co/bartowski" target="_blank" rel="noopener">bartowski GGUFs</a></li>
+          <li><a href="https://huggingface.co/unsloth" target="_blank" rel="noopener">unsloth GGUFs</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="credits">
+      <div data-en="MIT licensed · made for people who like their data on their disk."
+           data-pt="Licença MIT · feito pra quem gosta de ter os dados no próprio disco.">
+      </div>
+      <div>github.com/Colgate13/vello-llama</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // =========================================================
+  // i18n toggle
+  // =========================================================
+  const STORAGE_KEY = 'vello-lang';
+  const supported = ['en', 'pt'];
+
+  function detectLang() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && supported.includes(saved)) return saved;
+    const nav = (navigator.language || 'en').slice(0, 2).toLowerCase();
+    return supported.includes(nav) ? nav : 'en';
+  }
+
+  function setLang(lang) {
+    if (!supported.includes(lang)) lang = 'en';
+    document.documentElement.lang = lang;
+    localStorage.setItem(STORAGE_KEY, lang);
+
+    document.querySelectorAll('[data-en]').forEach(el => {
+      const v = el.dataset[lang];
+      if (typeof v === 'string') el.textContent = v;
+    });
+    document.querySelectorAll('[data-en-html]').forEach(el => {
+      const key = lang + 'Html';
+      const v = el.dataset[key];
+      if (typeof v === 'string') el.innerHTML = v;
+    });
+
+    document.querySelectorAll('.lang-toggle button').forEach(btn => {
+      const active = btn.dataset.lang === lang;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+
+    // Featured-card label localization
+    document.querySelectorAll('[data-featured-label-en]').forEach(el => {
+      const k = lang + 'Html';
+      const v = el.dataset[lang === 'pt' ? 'featuredLabelPt' : 'featuredLabelEn'];
+      if (v) el.setAttribute('data-featured-label', v);
+    });
+  }
+
+  document.querySelectorAll('.lang-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => setLang(btn.dataset.lang));
+  });
+
+  setLang(detectLang());
+
+  // =========================================================
+  // Copy buttons
+  // =========================================================
+  document.querySelectorAll('.codeblock .copy').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const block = btn.parentElement;
+      const activePanel = block.querySelector('.tab-panel.active') || block;
+      const pre = activePanel.querySelector('pre') || block.querySelector('pre');
+      try {
+        await navigator.clipboard.writeText(pre.innerText);
+        const lang = document.documentElement.lang;
+        btn.textContent = lang === 'pt' ? 'Copiado' : 'Copied';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.textContent = btn.dataset[lang] || 'Copy';
+        }, 1400);
+      } catch {
+        btn.textContent = '!';
+      }
+    });
+  });
+
+  // =========================================================
+  // Tabs (Connect section)
+  // =========================================================
+  document.querySelectorAll('.tabs').forEach(tabs => {
+    const block = tabs.nextElementSibling; // .codeblock
+    if (!block) return;
+    tabs.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        block.querySelectorAll('.tab-panel').forEach(p => {
+          p.classList.toggle('active', p.dataset.panel === tab.dataset.tab);
+        });
+      });
+    });
+  });
+
+  // =========================================================
+  // Scroll progress bar
+  // =========================================================
+  const progress = document.getElementById('progress');
+  function updateProgress() {
+    const h = document.documentElement;
+    const max = h.scrollHeight - h.clientHeight;
+    const pct = max > 0 ? (h.scrollTop / max) * 100 : 0;
+    progress.style.width = pct + '%';
+  }
+  window.addEventListener('scroll', updateProgress, { passive: true });
+  updateProgress();
+
+  // =========================================================
+  // Active section in nav (scroll-spy)
+  // =========================================================
+  const sections = Array.from(document.querySelectorAll('main section[id]'));
+  const navLinks = Array.from(document.querySelectorAll('.nav-links a'));
+  const linkBy = id => navLinks.find(a => a.getAttribute('href') === '#' + id);
+
+  if (sections.length && navLinks.length) {
+    const spy = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          navLinks.forEach(a => a.classList.remove('active'));
+          const link = linkBy(e.target.id);
+          if (link) link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-45% 0px -50% 0px', threshold: 0 });
+    sections.forEach(s => spy.observe(s));
+  }
+
+  // =========================================================
+  // Scroll-reveal
+  // =========================================================
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const reveal = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          reveal.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    document.querySelectorAll('.reveal').forEach(el => reveal.observe(el));
+  } else {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+  }
+
+  // =========================================================
+  // Terminal animation
+  // =========================================================
+  (function () {
+    const term = document.getElementById('term');
+    if (!term) return;
+
+    const lines = [
+      { type: 'cmd',      text: 'vello recommend chat' },
+      { type: 'out-info', text: '  ▸ qwen3-8b           7.6B   S    tools' },
+      { type: 'out-info', text: '  ▸ qwen3-30b-a3b      30B    B    moe, tools' },
+      { type: 'out-info', text: '  ▸ llama-3.1-8b       8.0B   S    tools' },
+      { type: 'cmd',      text: 'vello install qwen3-8b' },
+      { type: 'out-ok',   text: '  ✓ picked Q5_K_M for 8GB VRAM' },
+      { type: 'out-ok',   text: '  ✓ downloaded 5.4 GB from bartowski' },
+      { type: 'out-ok',   text: '  ✓ wrote .env  ·  restarted llama-server' },
+      { type: 'cmd',      text: 'vello health' },
+      { type: 'out-ok',   text: '  ✓ http://localhost:8080/v1  →  ready' },
+    ];
+
+    const TYPE_MS = 26;
+    const PAUSE_AFTER_CMD = 320;
+    const PAUSE_AFTER_OUT = 80;
+    let cancelled = false;
+
+    function makeLineEl() {
+      const el = document.createElement('span');
+      el.className = 'term-line';
+      term.appendChild(el);
+      return el;
+    }
+    function appendCursor(parent) {
+      const c = document.createElement('span');
+      c.className = 'cursor';
+      parent.appendChild(c);
+      return c;
+    }
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    async function typeCommand(text) {
+      const line = makeLineEl();
+      const promptSpan = document.createElement('span');
+      promptSpan.className = 'prompt';
+      promptSpan.textContent = '$ ';
+      line.appendChild(promptSpan);
+      const cmd = document.createElement('span');
+      line.appendChild(cmd);
+      const cursor = appendCursor(line);
+      for (let i = 0; i < text.length; i++) {
+        if (cancelled) return;
+        cmd.textContent += text[i];
+        await sleep(TYPE_MS);
+      }
+      cursor.remove();
+      await sleep(PAUSE_AFTER_CMD);
+    }
+    async function emitLine(cls, text) {
+      const line = makeLineEl();
+      const span = document.createElement('span');
+      span.className = cls;
+      span.textContent = text;
+      line.appendChild(span);
+      await sleep(PAUSE_AFTER_OUT);
+    }
+    async function run() {
+      for (const ln of lines) {
+        if (cancelled) return;
+        if (ln.type === 'cmd') await typeCommand(ln.text);
+        else                   await emitLine(ln.type, ln.text);
+      }
+      const tail = makeLineEl();
+      const p = document.createElement('span');
+      p.className = 'prompt';
+      p.textContent = '$ ';
+      tail.appendChild(p);
+      appendCursor(tail);
+    }
+
+    const io = new IntersectionObserver(entries => {
+      for (const e of entries) {
+        if (e.isIntersecting && !term.dataset.started) {
+          term.dataset.started = '1';
+          run();
+        }
+      }
+    }, { threshold: 0.25 });
+    io.observe(term);
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) cancelled = true;
+    });
+  })();
+</script>
+
+</body>
+</html>

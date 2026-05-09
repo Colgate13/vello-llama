@@ -3,7 +3,7 @@ name = "vello"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.74"
-description = "Curated LLM catalog manager for the vello-llama-local stack"
+description = "Curated LLM catalog manager for the vello-llama stack"
 license = "Apache-2.0"
 
 [[bin]]
