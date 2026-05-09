@@ -65,7 +65,7 @@ services:
     ports:
       - "${WEBUI_PORT:-3000}:8080"
     volumes:
-      - open-webui-data:/app/backend/data
+      - ./openwebui-data:/app/backend/data
     environment:
       - OPENAI_API_BASE_URL=http://llama-server:8080/v1
       - OPENAI_API_KEY=local-no-auth
@@ -77,6 +77,3 @@ services:
       llama-server:
         condition: service_healthy
     restart: unless-stopped
-
-volumes:
-  open-webui-data:

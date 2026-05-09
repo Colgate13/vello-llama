@@ -9,9 +9,13 @@ cd vello-llama-local
 ./vello-installer install
 ./vello recommend chat
 ./vello install qwen3-8b
+./vello up                 # first time only — install only restarts an already-running stack
 ```
 
-Open <http://localhost:3000> and chat.
+The first boot takes **1–3 min** before `<http://localhost:3000>` answers:
+llama-server has to load the GGUF onto the GPU, and only then does Open WebUI
+start its own first-run setup (embedding model + SQLite). Watch progress with
+`./vello health` (API) or `./vello logs -f open-webui` (UI).
 
 ---
 
@@ -21,6 +25,7 @@ Open <http://localhost:3000> and chat.
 - [How it fits together](#how-it-fits-together)
 - [Installation](#installation)
 - [Daily use](#daily-use)
+- [What persists across restarts](#what-persists-across-restarts)
 - [Configuration](#configuration)
 - [The catalog](#the-catalog)
 - [Connecting clients](#connecting-clients)
@@ -156,10 +161,12 @@ vello-llama-local/
 ├── system.toml            # auto-created on first vello run
 ├── profile.toml           # auto-detected on first vello run
 ├── models/                # downloaded .gguf files land here (gitignored)
+├── openwebui-data/        # Open WebUI conversations + users + settings (gitignored, root-owned)
 └── .env                   # generated from system.toml (do not edit)
 ```
 
-No model is installed yet — that is your next decision.
+No model is installed yet, and the docker stack is not running yet — both
+happen on your first `./vello install <id>` followed by `./vello up`.
 
 ---
 
@@ -167,21 +174,27 @@ No model is installed yet — that is your next decision.
 
 The flow is always: **discover → install → control → tune**.
 
+> **Tip — discoverability.** Every subcommand has `-h` (one-line summary) and
+> `--help` (long form with examples). `./vello -h` lists everything by category
+> at the bottom. Short aliases save typing: `ls`=`list`, `rm`=`remove`,
+> `ps`=`status`. Common flags have short forms too: `-q` quant, `-t` tier,
+> `-T` tag, `-m` modality, `-i` installed, `-l` limit, `-n` no-switch.
+
 ### 1. Discover
 
 ```bash
 ./vello list                       # full catalog with auto-calculated tier
-./vello list --tier S              # only models that fit 100% in your VRAM
-./vello list --tag vision          # filter by tag
-./vello list --modality image      # only multimodal
-./vello list --installed           # only what's already on disk
+./vello ls -i                      # alias + short flag: only what's on disk
+./vello list -t S                  # only models that fit 100% in your VRAM
+./vello list -T vision             # filter by tag (-T because -t is tier)
+./vello list -m image              # only multimodal
 
 ./vello recommend chat             # top picks for "general chat"
 ./vello recommend "código"         # for code (PT triggers also work)
-./vello recommend "raciocínio"     # reasoning models
+./vello recommend "raciocínio" -l 5   # reasoning models, top 5
 
 ./vello info qwen3-8b              # full details for a model
-./vello info qwen3-30b-a3b --quant Q4_K_M    # what would Q4 look like?
+./vello info qwen3-30b-a3b -q Q4_K_M    # what would Q4 look like?
 ```
 
 **Tiers** are computed from your hardware profile, not stored in the catalog:
@@ -201,13 +214,14 @@ speed because only the active parameters live in VRAM.
 
 ```bash
 ./vello install qwen3-8b           # auto-pick best quant + download + apply + restart
-./vello install qwen3-30b-a3b --quant Q4_K_M   # force a specific quant
+./vello install qwen3-30b-a3b -q Q4_K_M   # force a specific quant
+./vello install qwen3-8b -n        # download but don't switch (-n = --no-switch)
 
 ./vello switch qwen2.5-7b          # change active model (must be on disk)
-./vello switch qwen3-8b --quant Q4_K_M
+./vello switch qwen3-8b -q Q4_K_M
 
 ./vello active                     # what's loaded right now?
-./vello remove qwen2.5-coder-7b    # delete the .gguf
+./vello rm qwen2.5-coder-7b        # alias of remove — delete the .gguf
 ```
 
 **What `install` actually does:**
@@ -219,7 +233,8 @@ speed because only the active parameters live in VRAM.
 4. If the model declares a vision `mmproj`, downloads that too.
 5. Calls `vello apply` to regenerate `.env` from `system.toml` + the model's
    `[model.runtime]` block.
-6. Restarts the docker stack so the new model is loaded.
+6. Restarts the docker stack if it is already running. **The first time, the
+   stack is not running yet — finish with `./vello up`.**
 
 ### 3. Control the stack
 
@@ -230,14 +245,14 @@ Direct wrappers around `docker compose`. None require sudo.
 ./vello down              # stop
 ./vello restart           # down + up
 
-./vello status            # running containers
+./vello status            # running containers (alias: ./vello ps)
 ./vello logs              # last 200 lines
 ./vello logs -f           # follow
 ./vello logs -f llama-server   # only one service
 
 ./vello build             # rebuild the llama-server image (rare)
 ./vello build --no-cache  # force fresh build
-./vello nuke              # remove containers, volumes, image (keeps models/)
+./vello nuke              # remove containers + image (keeps models/, openwebui-data/, configs)
 ```
 
 ### 4. Diagnose
@@ -272,6 +287,71 @@ text.
 `vello apply` is the bridge between editing a TOML and the running stack. Edit
 `system.toml`, then run `vello apply` to push changes through to the
 container.
+
+### 6. Update
+
+```bash
+./vello update             # git pull + rebuild CLI if vello-cli/ changed
+./vello update --force     # ignore dirty working tree (git decides)
+```
+
+Safe by default: refuses to run with uncommitted changes, only rebuilds the
+Rust binary if `vello-cli/` actually changed, and **never touches**
+`models/`, your TOMLs, `.env`, or the Open WebUI data volume. If
+`docker/` or `docker-compose.yml` changed in the pull, you get a hint to
+follow up with `./vello build && ./vello restart` (image rebuilds aren't
+done automatically — they're slow).
+
+---
+
+## What persists across restarts
+
+Everything user-facing is bind-mounted to the host filesystem — nothing
+important lives inside containers or in named Docker volumes. So the only
+thing `vello nuke` destroys is the llama-server image (which `vello build`
+recreates) and the containers themselves.
+
+| Data | Where it lives | `down`/`up`/`restart` | `update` | `nuke` |
+|---|---|---|---|---|
+| Model GGUFs | `./models/` (bind-mount) | ✅ kept | ✅ kept | ✅ kept |
+| `system.toml`, `profile.toml`, `catalogs/`, `.env` | host filesystem | ✅ kept | ✅ kept | ✅ kept |
+| Open WebUI conversations, users, settings | `./openwebui-data/` (bind-mount) | ✅ kept | ✅ kept | ✅ kept |
+| `vello/llama-server-cuda` image | Docker images | ✅ kept | ✅ kept | ❌ deleted (re-`vello build`) |
+
+### Backup
+
+Just copy the host directories — no `docker volume` gymnastics:
+
+```bash
+./vello down                                      # optional, for fully consistent SQLite
+tar czf vello-backup-$(date +%F).tgz \
+  models/ openwebui-data/ catalogs/ system.toml profile.toml
+./vello up
+```
+
+Restore on another machine: clone the repo, run `vello-installer install`,
+extract the tarball over the project root, then `./vello up`.
+
+> **Note on permissions.** The Open WebUI container runs as root, so files
+> in `./openwebui-data/` will be owned by `root:root`. To `cp`/`tar`/`rsync`
+> them without sudo, after the first boot run:
+> `sudo chown -R "$USER":"$USER" ./openwebui-data` (one-shot — Open WebUI
+> keeps writing fine as root afterward).
+
+### Migrating from a named volume
+
+If you used vello before this change, your conversations are in the old
+named volume `vello-llama-local_open-webui-data`. Migrate once:
+
+```bash
+./vello down
+docker run --rm \
+  -v vello-llama-local_open-webui-data:/from \
+  -v "$PWD/openwebui-data":/to \
+  alpine sh -c "cp -a /from/. /to/"
+./vello up                                        # confirm conversations are back
+docker volume rm vello-llama-local_open-webui-data    # only after you confirm
+```
 
 ---
 
@@ -451,6 +531,31 @@ Pre-baked configs ship in `clients/`. Copy them to `~/.config/opencode/` and
 ## Troubleshooting
 
 <details>
+<summary><b><code>:3000</code> doesn't respond right after <code>vello up</code></b></summary>
+
+Expected on first boot. `docker compose up -d` returns as soon as the
+containers are *created*, but two slow steps run after that:
+
+1. **llama-server** mmaps the GGUF and uploads layers to VRAM
+   (`start_period: 90s` in the healthcheck).
+2. **open-webui** waits for llama-server to be healthy
+   (`depends_on: service_healthy`), then runs its own first-time setup —
+   pulls a small embedding model and initializes its SQLite DB.
+
+Total: **1–3 min** the first time, ~10–30 s on later starts (image cached,
+model still on disk). Track it with:
+
+```bash
+./vello health                       # is the llama API up?
+./vello logs -f open-webui           # follow the UI boot
+docker compose ps                    # both should say "healthy" / "Up"
+```
+
+Only worry if it's been more than ~5 min — then check the logs for an actual
+error.
+</details>
+
+<details>
 <summary><b>Stack won't start</b></summary>
 
 ```bash
@@ -555,8 +660,9 @@ Run it from inside the project directory, or set
 The project is fully self-contained. To remove it:
 
 ```bash
-./vello nuke                                          # containers, volumes, image
+./vello nuke                                          # containers + image
 rm -f models/*.gguf                                   # downloaded models
+sudo rm -rf openwebui-data                            # Open WebUI data (root-owned)
 rm -rf vello-cli/target vello profile.toml system.toml .env
 sudo apt purge nvidia-container-toolkit               # optional, system-wide
 rm -rf /path/to/vello-llama-local                     # the repo

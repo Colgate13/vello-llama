@@ -9,6 +9,8 @@ profile.toml
 system.toml
 catalogs/user/*
 !catalogs/user/.gitkeep
+openwebui-data/*
+!openwebui-data/.gitkeep
 
 # vello-cli (Rust)
 vello-cli/target/

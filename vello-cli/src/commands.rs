@@ -820,3 +820,150 @@ pub fn cmd_profile_refresh(paths: &Paths) -> Result<()> {
     cmd_profile_show(&p)?;
     Ok(())
 }
+
+pub fn cmd_update(paths: &Paths, force: bool) -> Result<()> {
+    use std::process::{Command, Stdio};
+    let st = Style::new();
+    let root = &paths.project_root;
+
+    if !root.join(".git").exists() {
+        bail!(
+            "{} is not a git checkout — `vello update` only works on a git clone",
+            root.display()
+        );
+    }
+
+    let dirty = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(root)
+        .output()
+        .with_context(|| "running `git status` — is git installed?")?;
+    if !dirty.status.success() {
+        bail!("git status failed");
+    }
+    let dirty_out = String::from_utf8_lossy(&dirty.stdout);
+    if !dirty_out.trim().is_empty() && !force {
+        eprintln!("{}", st.yellow("uncommitted changes in working tree:"));
+        for line in dirty_out.lines().take(10) {
+            eprintln!("  {}", line);
+        }
+        bail!("commit/stash your changes first, or re-run with --force to attempt the pull anyway");
+    }
+
+    let head_before = git_head(root)?;
+    println!("{} pulling latest...", st.bold("→"));
+    let pull = Command::new("git")
+        .args(["pull", "--ff-only"])
+        .current_dir(root)
+        .status()
+        .with_context(|| "running `git pull`")?;
+    if !pull.success() {
+        bail!("git pull failed — resolve manually then re-run `vello update`");
+    }
+    let head_after = git_head(root)?;
+
+    if head_before == head_after {
+        println!(
+            "{} already up to date ({})",
+            st.green("✓"),
+            short_sha(&head_after)
+        );
+        return Ok(());
+    }
+
+    let changed = Command::new("git")
+        .args(["diff", "--name-only", &head_before, &head_after])
+        .current_dir(root)
+        .output()
+        .with_context(|| "running `git diff`")?;
+    let changed_files: Vec<&str> = std::str::from_utf8(&changed.stdout)
+        .unwrap_or("")
+        .lines()
+        .collect();
+
+    let cli_changed = changed_files
+        .iter()
+        .any(|f| f.starts_with("vello-cli/") || *f == "Cargo.toml" || *f == "Cargo.lock");
+    let docker_changed = changed_files
+        .iter()
+        .any(|f| f.starts_with("docker/") || *f == "docker-compose.yml");
+    let catalog_changed = changed_files
+        .iter()
+        .any(|f| f.starts_with("catalogs/default"));
+
+    println!(
+        "{} {} → {} ({} files changed)",
+        st.green("pulled"),
+        short_sha(&head_before),
+        short_sha(&head_after),
+        changed_files.len()
+    );
+
+    if cli_changed {
+        println!("{} rebuilding vello binary...", st.bold("→"));
+        let cargo = Command::new("cargo")
+            .args([
+                "build",
+                "--release",
+                "--manifest-path",
+                "vello-cli/Cargo.toml",
+            ])
+            .current_dir(root)
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .with_context(|| "running `cargo build` — is the Rust toolchain installed?")?;
+        if !cargo.success() {
+            bail!("cargo build failed — fix errors above and re-run `vello update`");
+        }
+        println!("{} vello rebuilt", st.green("✓"));
+    } else {
+        println!("  {} no Rust changes — binary not rebuilt", st.dim("·"));
+    }
+
+    println!();
+    println!("{}", st.bold("next steps:"));
+    if docker_changed {
+        println!(
+            "  {} docker/ or compose changed — rebuild image: {}",
+            st.yellow("!"),
+            st.cyan("./vello build")
+        );
+        println!("    then restart: {}", st.cyan("./vello restart"));
+    } else {
+        println!(
+            "  {} restart only if you want to pick up new defaults: {}",
+            st.dim("·"),
+            st.cyan("./vello restart")
+        );
+    }
+    if catalog_changed {
+        println!(
+            "  {} catalog updated — see new entries: {}",
+            st.dim("·"),
+            st.cyan("./vello list")
+        );
+    }
+    println!(
+        "  {} models, configs, and Open WebUI data are untouched",
+        st.green("✓")
+    );
+
+    Ok(())
+}
+
+fn git_head(root: &std::path::Path) -> Result<String> {
+    let out = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(root)
+        .output()
+        .with_context(|| "git rev-parse HEAD")?;
+    if !out.status.success() {
+        bail!("git rev-parse failed");
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+fn short_sha(sha: &str) -> String {
+    sha.chars().take(7).collect()
+}
