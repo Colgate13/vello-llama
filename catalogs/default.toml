@@ -21,7 +21,7 @@ Q4_K_M = "Qwen_Qwen3-8B-Q4_K_M.gguf"
 [[model]]
 id = "qwen2.5-7b"
 repo = "bartowski/Qwen2.5-7B-Instruct-GGUF"
-default_quant = "Q5_K_M"
+default_quant = "Q4_K_M"
 params_total_b = 7.6
 architecture = "dense"
 tags = ["chat", "tools", "multilingual"]
