@@ -178,11 +178,7 @@ fn decide_mode(
             );
         }
         let p = profile::set_mode(&paths.profile, Mode::Gpu)?;
-        return Ok((
-            Mode::Gpu,
-            "forced by --gpu (NVIDIA GPU detected)".into(),
-            p,
-        ));
+        return Ok((Mode::Gpu, "forced by --gpu (NVIDIA GPU detected)".into(), p));
     }
     if opts.force_cpu {
         let p = profile::set_mode(&paths.profile, Mode::Cpu)?;
@@ -246,7 +242,11 @@ fn handle_missing_gpu(
     let yes = matches!(buf.trim(), "y" | "Y" | "yes" | "YES");
     if yes {
         let p = profile::set_mode(&paths.profile, Mode::Cpu)?;
-        Ok((Mode::Cpu, "no GPU detected; user confirmed CPU mode".into(), p))
+        Ok((
+            Mode::Cpu,
+            "no GPU detected; user confirmed CPU mode".into(),
+            p,
+        ))
     } else {
         anyhow::bail!("aborted by user (no GPU and CPU mode declined)")
     }
@@ -444,11 +444,7 @@ fn checks_tools() -> Vec<CheckResult> {
     out.push(CheckResult {
         id: "tools.docker_daemon".into(),
         category: "tools".into(),
-        status: if daemon {
-            Severity::Ok
-        } else {
-            Severity::Fail
-        },
+        status: if daemon { Severity::Ok } else { Severity::Fail },
         value: if daemon {
             "reachable".into()
         } else {
@@ -482,10 +478,7 @@ fn checks_tools() -> Vec<CheckResult> {
             category: "tools".into(),
             status: Severity::Fail,
             value: "missing (need v2 plugin)".into(),
-            fix: Some(
-                "Update Docker; modern installs ship `docker compose` (v2 plugin)."
-                    .into(),
-            ),
+            fix: Some("Update Docker; modern installs ship `docker compose` (v2 plugin).".into()),
             auto_installable: false,
         },
     });
@@ -496,7 +489,7 @@ fn checks_tools() -> Vec<CheckResult> {
         ("curl", false),
         ("jq", false),
         ("git", false),
-        ("gpg", false),   // needed by the nvidia-container-toolkit install pipeline
+        ("gpg", false), // needed by the nvidia-container-toolkit install pipeline
         ("watch", true),
     ] {
         let present = command_exists(name);
@@ -511,7 +504,11 @@ fn checks_tools() -> Vec<CheckResult> {
             } else {
                 Severity::Fail
             },
-            value: if present { "found".into() } else { "missing".into() },
+            value: if present {
+                "found".into()
+            } else {
+                "missing".into()
+            },
             fix: if present {
                 None
             } else {
@@ -559,7 +556,11 @@ fn checks_gpu(mode: Mode, deep: bool) -> Vec<CheckResult> {
         } else {
             Severity::Fail
         },
-        value: if nvidia_smi { "found".into() } else { "missing".into() },
+        value: if nvidia_smi {
+            "found".into()
+        } else {
+            "missing".into()
+        },
         fix: if nvidia_smi {
             None
         } else {
@@ -656,7 +657,11 @@ fn checks_gpu(mode: Mode, deep: bool) -> Vec<CheckResult> {
         } else {
             Severity::Fail
         },
-        value: if toolkit { "installed".into() } else { "missing".into() },
+        value: if toolkit {
+            "installed".into()
+        } else {
+            "missing".into()
+        },
         fix: if toolkit {
             None
         } else {
@@ -689,19 +694,12 @@ fn checks_gpu(mode: Mode, deep: bool) -> Vec<CheckResult> {
         out.push(CheckResult {
             id: "gpu.docker_passthrough".into(),
             category: "gpu".into(),
-            status: if ok {
-                Severity::Ok
-            } else {
-                Severity::Fail
-            },
+            status: if ok { Severity::Ok } else { Severity::Fail },
             value: if ok { "works".into() } else { "fails".into() },
             fix: if ok {
                 None
             } else {
-                Some(
-                    "Docker cannot reach the GPU. Try: `sudo systemctl restart docker`."
-                        .into(),
-                )
+                Some("Docker cannot reach the GPU. Try: `sudo systemctl restart docker`.".into())
             },
             auto_installable: false,
         });
@@ -740,16 +738,15 @@ fn checks_ports(paths: &Paths) -> Vec<CheckResult> {
     // Best-effort: if system.toml is missing/broken, fall back to defaults.
     let sys = system::load_or_default(&paths.system).unwrap_or_default();
     let mut out = Vec::new();
-    for (id, port) in [("ports.llama", sys.ports.llama), ("ports.webui", sys.ports.web_ui)] {
+    for (id, port) in [
+        ("ports.llama", sys.ports.llama),
+        ("ports.webui", sys.ports.web_ui),
+    ] {
         let free = port_is_free(port);
         out.push(CheckResult {
             id: id.into(),
             category: "ports".into(),
-            status: if free {
-                Severity::Ok
-            } else {
-                Severity::Warn
-            },
+            status: if free { Severity::Ok } else { Severity::Warn },
             value: if free {
                 format!(":{port} free")
             } else {
@@ -777,9 +774,7 @@ fn checks_path(paths: &Paths) -> Vec<CheckResult> {
         .unwrap_or_else(|| Path::new("/").to_path_buf());
 
     let on_path = std::env::var("PATH")
-        .map(|p| {
-            std::env::split_paths(&p).any(|d| d == bin_dir)
-        })
+        .map(|p| std::env::split_paths(&p).any(|d| d == bin_dir))
         .unwrap_or(false);
 
     out.push(CheckResult {
@@ -826,7 +821,11 @@ fn checks_path(paths: &Paths) -> Vec<CheckResult> {
         },
         value: match &symlink_target {
             Some(_) if matches_expected => format!("{} → this project", symlink.display()),
-            Some(t) => format!("{} → {} (different project)", symlink.display(), t.display()),
+            Some(t) => format!(
+                "{} → {} (different project)",
+                symlink.display(),
+                t.display()
+            ),
             None => format!("{} not present", symlink.display()),
         },
         fix: if matches_expected {
@@ -1264,13 +1263,10 @@ fn detect_distro() -> (String, bool) {
             name = v.trim_matches('"').to_string();
         }
     }
-    let supported =
-        matches!(id.as_str(), "debian" | "ubuntu") || id_like.contains("debian") || id_like.contains("ubuntu");
-    let label = if name.is_empty() {
-        id.clone()
-    } else {
-        name
-    };
+    let supported = matches!(id.as_str(), "debian" | "ubuntu")
+        || id_like.contains("debian")
+        || id_like.contains("ubuntu");
+    let label = if name.is_empty() { id.clone() } else { name };
     (label, supported)
 }
 

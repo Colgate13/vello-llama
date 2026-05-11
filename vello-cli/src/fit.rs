@@ -205,9 +205,7 @@ fn classify_cpu(model: &Model, ram_need: f32, profile: &Profile) -> Tier {
     // MoE benefits from CPU: only `active` parameters are computed per token.
     // Use active params (when declared) as the "effective" size for speed
     // estimation; total params still need to fit in RAM (footprint).
-    let effective = model
-        .params_active_b
-        .unwrap_or(model.params_total_b);
+    let effective = model.params_active_b.unwrap_or(model.params_total_b);
 
     if effective <= 4.0 && ram_need <= br * 0.5 {
         return Tier::S;
@@ -400,7 +398,8 @@ mod tests {
 
     #[test]
     fn cpu_dense_7b_lands_in_tier_b() {
-        let m = dense_model_with_targets("qwen-7b", 7.6, &["Q4_K_M"], vec![Target::Cpu, Target::Gpu]);
+        let m =
+            dense_model_with_targets("qwen-7b", 7.6, &["Q4_K_M"], vec![Target::Cpu, Target::Gpu]);
         let p = cpu_profile(32.0);
         let pick = pick(&m, &p, Strategy::Balanced).unwrap();
         assert!(matches!(pick.tier, Tier::B));

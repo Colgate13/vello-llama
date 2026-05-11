@@ -215,8 +215,18 @@ mod tests {
     #[test]
     fn rank_filters_out_gpu_only_models_in_cpu_mode() {
         let entries = vec![
-            entry(model("dense-big-gpu-only", 14.0, Architecture::Dense, vec![Target::Gpu])),
-            entry(model("small-both", 3.0, Architecture::Dense, vec![Target::Gpu, Target::Cpu])),
+            entry(model(
+                "dense-big-gpu-only",
+                14.0,
+                Architecture::Dense,
+                vec![Target::Gpu],
+            )),
+            entry(model(
+                "small-both",
+                3.0,
+                Architecture::Dense,
+                vec![Target::Gpu, Target::Cpu],
+            )),
         ];
         let recs = rank(&entries, &cpu_profile(), "chat", 10);
         assert_eq!(recs.len(), 1);
@@ -226,7 +236,12 @@ mod tests {
     #[test]
     fn rank_filters_out_cpu_only_models_in_gpu_mode() {
         let entries = vec![
-            entry(model("cpu-only", 3.0, Architecture::Dense, vec![Target::Cpu])),
+            entry(model(
+                "cpu-only",
+                3.0,
+                Architecture::Dense,
+                vec![Target::Cpu],
+            )),
             entry(model("gpu-ok", 7.0, Architecture::Dense, vec![Target::Gpu])),
         ];
         let recs = rank(&entries, &gpu_profile(), "chat", 10);
@@ -239,8 +254,18 @@ mod tests {
         // Two models of similar tier — dense vs MoE. In CPU mode, MoE should
         // rank higher due to the 1.10x bonus.
         let entries = vec![
-            entry(model("dense-7b", 7.0, Architecture::Dense, vec![Target::Cpu, Target::Gpu])),
-            entry(model("moe-30b-a3b", 30.0, Architecture::Moe, vec![Target::Cpu, Target::Gpu])),
+            entry(model(
+                "dense-7b",
+                7.0,
+                Architecture::Dense,
+                vec![Target::Cpu, Target::Gpu],
+            )),
+            entry(model(
+                "moe-30b-a3b",
+                30.0,
+                Architecture::Moe,
+                vec![Target::Cpu, Target::Gpu],
+            )),
         ];
         let recs = rank(&entries, &cpu_profile(), "chat", 10);
         // MoE is small-active (3B) → likely Tier S in CPU; dense 7B → Tier B.
@@ -248,7 +273,10 @@ mod tests {
         let moe_pos = recs.iter().position(|r| r.entry.model.id == "moe-30b-a3b");
         let dense_pos = recs.iter().position(|r| r.entry.model.id == "dense-7b");
         assert!(moe_pos.is_some() && dense_pos.is_some());
-        assert!(moe_pos.unwrap() < dense_pos.unwrap(), "MoE should rank above dense-7b in CPU mode");
+        assert!(
+            moe_pos.unwrap() < dense_pos.unwrap(),
+            "MoE should rank above dense-7b in CPU mode"
+        );
     }
 
     #[test]
@@ -257,8 +285,18 @@ mod tests {
         // is CPU-mode-specific so we don't see it here. Hard to assert directly
         // without exposing score, but we can verify that filtering still works.
         let entries = vec![
-            entry(model("dense-7b", 7.0, Architecture::Dense, vec![Target::Gpu, Target::Cpu])),
-            entry(model("moe-30b-a3b", 30.0, Architecture::Moe, vec![Target::Gpu, Target::Cpu])),
+            entry(model(
+                "dense-7b",
+                7.0,
+                Architecture::Dense,
+                vec![Target::Gpu, Target::Cpu],
+            )),
+            entry(model(
+                "moe-30b-a3b",
+                30.0,
+                Architecture::Moe,
+                vec![Target::Gpu, Target::Cpu],
+            )),
         ];
         let recs = rank(&entries, &gpu_profile(), "chat", 10);
         // Both should appear; ordering is tier-driven (24 GB VRAM fits both).

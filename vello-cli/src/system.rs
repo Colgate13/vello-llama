@@ -136,8 +136,7 @@ pub fn load_or_default(path: &Path) -> Result<SystemConfig> {
 /// llama.cpp down because the bottleneck is the math units, not threads).
 pub fn physical_cores() -> Option<u32> {
     let raw = fs::read_to_string("/proc/cpuinfo").ok()?;
-    let mut pairs: std::collections::BTreeSet<(String, String)> =
-        std::collections::BTreeSet::new();
+    let mut pairs: std::collections::BTreeSet<(String, String)> = std::collections::BTreeSet::new();
     let mut cur_phys: Option<String> = None;
     let mut cur_core: Option<String> = None;
     for line in raw.lines() {
