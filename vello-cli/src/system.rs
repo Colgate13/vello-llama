@@ -126,6 +126,47 @@ pub fn load_or_default(path: &Path) -> Result<SystemConfig> {
     Ok(cfg)
 }
 
+/// Count physical CPU cores (excluding SMT siblings) by walking
+/// `/proc/cpuinfo`. Each `(physical id, core id)` pair is unique per
+/// physical core. Returns `None` if `/proc/cpuinfo` is unavailable or
+/// can't be parsed — caller should fall back to the configured default.
+///
+/// Used by the resolver in CPU mode to size the `--threads` flag so we
+/// pin to physical cores rather than logical (SMT pairs typically slow
+/// llama.cpp down because the bottleneck is the math units, not threads).
+pub fn physical_cores() -> Option<u32> {
+    let raw = fs::read_to_string("/proc/cpuinfo").ok()?;
+    let mut pairs: std::collections::BTreeSet<(String, String)> =
+        std::collections::BTreeSet::new();
+    let mut cur_phys: Option<String> = None;
+    let mut cur_core: Option<String> = None;
+    for line in raw.lines() {
+        if line.is_empty() {
+            if let (Some(p), Some(c)) = (cur_phys.take(), cur_core.take()) {
+                pairs.insert((p, c));
+            }
+            continue;
+        }
+        let (k, v) = match line.split_once(':') {
+            Some((k, v)) => (k.trim(), v.trim().to_string()),
+            None => continue,
+        };
+        match k {
+            "physical id" => cur_phys = Some(v),
+            "core id" => cur_core = Some(v),
+            _ => {}
+        }
+    }
+    // Flush trailing block if /proc/cpuinfo didn't end with a blank line.
+    if let (Some(p), Some(c)) = (cur_phys, cur_core) {
+        pairs.insert((p, c));
+    }
+    if pairs.is_empty() {
+        return None;
+    }
+    Some(pairs.len() as u32)
+}
+
 /// Write a fresh system.toml with documented sections. Used for the example
 /// file and as a template if the user runs `vello system init`.
 pub fn render_template() -> String {
@@ -155,6 +196,11 @@ kv_cache_v = "q8_0"
 
 # Flash attention (faster + less VRAM). Disable only if you hit numeric issues.
 flash_attn = true
+
+# Note: the values above are GPU-optimized. In CPU mode (see `vello doctor
+# --cpu`), the resolver applies automatic overrides — ngl=0, flash_attn=off,
+# ctx capped at 8192, batch≤512, ubatch≤128, and threads=physical CPU
+# cores. You can still override per-model via catalogs/*.toml [model.runtime].
 "#
     .to_string()
 }

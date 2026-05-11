@@ -12,6 +12,7 @@ repo = "bartowski/Qwen_Qwen3-8B-GGUF"
 default_quant = "Q5_K_M"
 params_total_b = 8.2
 architecture = "dense"
+targets = ["gpu", "cpu"]
 tags = ["chat", "tools", "reasoning", "multilingual"]
 description = "Qwen 3 8B. Strong tool calling, multilingual. Recommended default."
 [model.files]
@@ -24,6 +25,7 @@ repo = "bartowski/Qwen2.5-7B-Instruct-GGUF"
 default_quant = "Q4_K_M"
 params_total_b = 7.6
 architecture = "dense"
+targets = ["gpu", "cpu"]
 tags = ["chat", "tools", "multilingual"]
 description = "Qwen 2.5 generalist. Solid tool calling, well-tested."
 [model.files]
@@ -36,6 +38,7 @@ repo = "bartowski/Meta-Llama-3.1-8B-Instruct-GGUF"
 default_quant = "Q5_K_M"
 params_total_b = 8.0
 architecture = "dense"
+targets = ["gpu", "cpu"]
 tags = ["chat", "tools"]
 description = "Meta's Llama 3.1 with native tool calling."
 [model.files]
@@ -48,6 +51,7 @@ repo = "bartowski/Hermes-3-Llama-3.1-8B-GGUF"
 default_quant = "Q5_K_M"
 params_total_b = 8.0
 architecture = "dense"
+targets = ["gpu", "cpu"]
 tags = ["chat", "tools", "agent"]
 description = "NousResearch fine-tune optimized for function calling."
 [model.files]
@@ -60,6 +64,7 @@ repo = "bartowski/Mistral-Nemo-Instruct-2407-GGUF"
 default_quant = "Q4_K_M"
 params_total_b = 12.2
 architecture = "dense"
+targets = ["gpu"]
 tags = ["chat", "tools", "multilingual"]
 description = "Mistral 12B with 128k context."
 [model.files]
@@ -72,6 +77,7 @@ repo = "bartowski/microsoft_Phi-4-mini-instruct-GGUF"
 default_quant = "Q5_K_M"
 params_total_b = 3.8
 architecture = "dense"
+targets = ["gpu", "cpu"]
 tags = ["chat", "tools", "small", "fast"]
 description = "Microsoft 3.8B. Excellent quality-per-byte."
 [model.files]
@@ -84,6 +90,7 @@ repo = "bartowski/aya-expanse-8b-GGUF"
 default_quant = "Q5_K_M"
 params_total_b = 8.0
 architecture = "dense"
+targets = ["gpu", "cpu"]
 tags = ["chat", "multilingual"]
 description = "Cohere multilingual. Top choice for PT-BR."
 [model.files]
@@ -102,6 +109,7 @@ repo = "bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF"
 default_quant = "Q5_K_M"
 params_total_b = 7.6
 architecture = "dense"
+targets = ["gpu", "cpu"]
 tags = ["chat", "reasoning", "thinking"]
 description = "Qwen 7B distilled on R1 reasoning traces."
 [model.files]
@@ -114,6 +122,7 @@ repo = "bartowski/DeepSeek-R1-Distill-Llama-8B-GGUF"
 default_quant = "Q5_K_M"
 params_total_b = 8.0
 architecture = "dense"
+targets = ["gpu", "cpu"]
 tags = ["chat", "reasoning", "thinking"]
 description = "Llama 8B distilled on R1 reasoning."
 [model.files]
@@ -126,6 +135,7 @@ repo = "bartowski/DeepSeek-R1-Distill-Qwen-14B-GGUF"
 default_quant = "Q4_K_M"
 params_total_b = 14.8
 architecture = "dense"
+targets = ["gpu"]
 tags = ["chat", "reasoning", "thinking"]
 description = "14B reasoning. Best R1-distill that fits 8 GB with offload."
 [model.files]
@@ -138,6 +148,7 @@ repo = "bartowski/Qwen_QwQ-32B-GGUF"
 default_quant = "Q4_K_M"
 params_total_b = 32.5
 architecture = "dense"
+targets = ["gpu"]
 tags = ["chat", "reasoning", "thinking"]
 description = "Qwen 32B reasoning. High quality, slow on 8 GB."
 [model.files]
@@ -154,6 +165,7 @@ repo = "bartowski/Qwen2.5-Coder-7B-Instruct-GGUF"
 default_quant = "Q5_K_M"
 params_total_b = 7.6
 architecture = "dense"
+targets = ["gpu", "cpu"]
 tags = ["code", "coder", "fim"]
 description = "Code completion specialist. Weak at tool calling."
 [model.files]
@@ -166,6 +178,7 @@ repo = "bartowski/Qwen2.5-Coder-14B-Instruct-GGUF"
 default_quant = "Q4_K_M"
 params_total_b = 14.8
 architecture = "dense"
+targets = ["gpu"]
 tags = ["code", "coder"]
 description = "14B code specialist with light offload."
 [model.files]
@@ -179,6 +192,7 @@ default_quant = "Q4_K_M"
 params_total_b = 30.0
 params_active_b = 3.0
 architecture = "moe"
+targets = ["gpu", "cpu"]
 tags = ["code", "coder", "fast-moe", "tools"]
 description = "Best code model that fits comfortably. 30B/3B MoE."
 [model.files]
@@ -194,6 +208,7 @@ default_quant = "Q4_K_M"
 params_total_b = 16.0
 params_active_b = 2.4
 architecture = "moe"
+targets = ["gpu", "cpu"]
 tags = ["code", "coder", "fast-moe"]
 description = "Compact MoE coder. 16B/2.4B active."
 [model.files]
@@ -213,6 +228,7 @@ default_quant = "Q5_K_M"
 params_total_b = 7.6
 architecture = "dense"
 modalities = ["text", "image"]
+targets = ["gpu", "cpu"]
 tags = ["chat", "vision", "multimodal", "ocr", "tools", "multilingual"]
 description = "Best vision-language 7B for 8 GB. Strong OCR."
 [model.files]
@@ -228,6 +244,7 @@ default_quant = "Q4_K_M"
 params_total_b = 8.0
 architecture = "dense"
 modalities = ["text", "image", "video"]
+targets = ["gpu", "cpu"]
 tags = ["chat", "vision", "multimodal"]
 description = "Excellent vision quality. Supports video frames."
 [model.files]
@@ -243,6 +260,7 @@ default_quant = "Q5_K_M"
 params_total_b = 4.3
 architecture = "dense"
 modalities = ["text", "image"]
+targets = ["gpu", "cpu"]
 tags = ["chat", "vision", "multimodal", "small", "tools"]
 description = "Google Gemma 3 small multimodal."
 [model.files]
@@ -258,6 +276,7 @@ default_quant = "Q4_K_M"
 params_total_b = 12.0
 architecture = "dense"
 modalities = ["text", "image"]
+targets = ["gpu"]
 tags = ["chat", "vision", "multimodal", "tools"]
 description = "Multimodal Gemma 3 12B. Tight on 8 GB."
 [model.files]
@@ -276,6 +295,7 @@ repo = "bartowski/Qwen_Qwen3-14B-GGUF"
 default_quant = "Q4_K_M"
 params_total_b = 14.8
 architecture = "dense"
+targets = ["gpu"]
 tags = ["chat", "tools", "reasoning", "multilingual"]
 description = "Qwen 3 14B with light offload."
 [model.files]
@@ -288,6 +308,7 @@ repo = "bartowski/phi-4-GGUF"
 default_quant = "Q4_K_M"
 params_total_b = 14.7
 architecture = "dense"
+targets = ["gpu"]
 tags = ["chat", "reasoning"]
 description = "Microsoft Phi-4. Strong reasoning."
 [model.files]
@@ -305,6 +326,7 @@ default_quant = "Q4_K_M"
 params_total_b = 30.0
 params_active_b = 3.0
 architecture = "moe"
+targets = ["gpu", "cpu"]
 tags = ["chat", "tools", "fast-moe", "multilingual"]
 description = "MoE sweet spot: 30B knowledge at 3B speed."
 [model.files]
@@ -324,6 +346,7 @@ default_quant = "Q4_K_M"
 params_total_b = 27.0
 architecture = "dense"
 modalities = ["text", "image", "video"]
+targets = ["gpu"]
 tags = ["chat", "vision", "video", "multimodal", "tools"]
 experimental = true
 description = "Newest Qwen 3.6 multimodal. Slow on 8 GB."
@@ -342,6 +365,7 @@ params_total_b = 35.0
 params_active_b = 3.0
 architecture = "moe"
 modalities = ["text", "image", "video"]
+targets = ["gpu", "cpu"]
 tags = ["chat", "vision", "video", "multimodal", "tools", "fast-moe"]
 experimental = true
 description = "Multimodal AND MoE. Best of both worlds if support is solid."
@@ -362,6 +386,7 @@ repo = "bartowski/Llama-3.2-3B-Instruct-GGUF"
 default_quant = "Q5_K_M"
 params_total_b = 3.2
 architecture = "dense"
+targets = ["gpu", "cpu"]
 tags = ["chat", "tools", "small", "fast"]
 description = "Tiny but capable. Use for extreme speed."
 [model.files]
@@ -375,6 +400,7 @@ repo = "bartowski/DeepSeek-R1-Distill-Qwen-1.5B-GGUF"
 default_quant = "Q8_0"
 params_total_b = 1.5
 architecture = "dense"
+targets = ["gpu", "cpu"]
 tags = ["reasoning", "thinking", "small", "fast"]
 description = "Tiny reasoning. 100+ tok/s."
 [model.files]

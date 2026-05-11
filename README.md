@@ -1,23 +1,67 @@
 # vello-llama
 
-> Self-hosted LLMs on your GPU. One installer, one CLI, one Web UI. No cloud,
-> no API key, no telemetry.
+> Self-hosted LLMs on your hardware. One installer, one CLI, one Web UI.
+> No cloud, no API key, no telemetry. **Works on NVIDIA GPU or pure CPU.**
+
+## Quick start
+
+A handful of commands. The installer pauses before each sudo / apt step, so
+nothing happens behind your back.
 
 ```bash
-git clone https://github.com/Colgate13/vello-llama.git
-cd vello-llama
-./vello-installer install
-./vello recommend chat
-./vello install qwen3-8b
-./vello up                 # first time only — install only restarts an already-running stack
+git clone https://github.com/Colgate13/vello-llama.git && cd vello-llama
+./vello-installer install          # auto-detects GPU/CPU, asks before each sudo step
+vello recommend chat               # what fits your hardware?
+vello install <model>              # e.g. phi-4-mini · downloads + activates
+vello up                           # start the stack
 ```
 
-The first boot takes **1–3 min** before `<http://localhost:3000>` answers:
-llama-server has to load the GGUF onto the GPU, and only then does Open WebUI
-start its own first-run setup (embedding model + SQLite). Watch progress with
-`./vello health` (API) or `./vello logs -f open-webui` (UI).
+Open **http://localhost:3000** — that's Open WebUI, already wired to the
+local LLM. Start chatting.
+
+First boot takes **1–3 min** (GPU) or **2–5 min** (CPU). Track progress with
+`vello health` (API) or `vello logs -f open-webui`.
+
+> Need a no-prompt run for CI / unattended servers? Add `--yes` to
+> `vello-installer install` (also auto-accepts the apt/sudo confirmations).
+
+### GPU or CPU? Both work.
+
+The installer runs `vello doctor` which detects your hardware:
+
+| If you have | What happens |
+|---|---|
+| **NVIDIA GPU + driver 550+** | Default. Builds CUDA image, picks a quant that fits VRAM. Expect 30–60 tok/s on 7B models. |
+| **No GPU (laptop, plain server)** | `./vello doctor --cpu --yes` flips to CPU mode. Builds a slim ~500 MB image, filters the catalog to CPU-friendly models. Expect 3–30 tok/s; MoE like `qwen3-30b-a3b` shines here. |
+
+You can change modes anytime with `./vello doctor --cpu` / `--gpu`.
+
+### Five commands you'll actually use
+
+```bash
+vello recommend chat       # what should I install for chat?
+vello install <id>         # download a model + activate it
+vello list                 # catalog with live tier for your hardware
+vello up / down            # start / stop the stack
+vello doctor               # is everything healthy?
+```
+
+`vello --help` lists everything; every subcommand has `--help` of its own.
+
+### When something looks wrong
+
+```bash
+./vello doctor             # checks every requirement, prints the exact fix
+./vello doctor --json      # machine-readable (CI / scripting), exit codes 0/1/2
+./vello doctor --fix --yes # auto-install fixable items (apt + sudo, confirmed)
+./vello logs -f            # tail container logs
+```
+
+If `vello doctor` says ok, the stack will run.
 
 ---
+
+## Need more detail? Everything below.
 
 ## Table of contents
 
@@ -25,6 +69,7 @@ start its own first-run setup (embedding model + SQLite). Watch progress with
 - [How it fits together](#how-it-fits-together)
 - [Installation](#installation)
 - [Daily use](#daily-use)
+- [Running on CPU](#running-on-cpu)
 - [What persists across restarts](#what-persists-across-restarts)
 - [Configuration](#configuration)
 - [The catalog](#the-catalog)
@@ -116,38 +161,72 @@ After the installer finishes, you do not run it again. Everything else is
 
 ### Prerequisites
 
-You need these on the host before running the installer. Each requires `sudo`
-or a manual decision; the installer doesn't try to do them for you.
+The installer needs a minimal seed — only `curl` and ~17 GB of free disk —
+to be able to build the Rust CLI. From there, **`vello doctor`** takes over:
+it checks every other requirement (Docker, NVIDIA stack, ports, paths,
+distro, RAM) in one pass, and **offers to install** the ones that are safe
+to auto-install (curl, jq, git, watch, nvidia-container-toolkit) with
+explicit confirmation. The ones it can't auto-install — Docker itself and
+the NVIDIA driver — it just tells you the exact commands to run.
 
-| Requirement | Check | Notes |
+| Requirement | Auto-install? | Check |
 |---|---|---|
-| Linux (Debian/Ubuntu) | `uname -a` | tested on Debian 13, Ubuntu 22.04+ |
-| NVIDIA driver 550+ | `nvidia-smi` | older drivers can't run CUDA 12.4 |
-| Docker, user in `docker` group | `docker info` | no `sudo` should be needed |
-| Free disk: ~17 GB initial | `df -h` | 5 GB image + 6 GB Open WebUI + 5 GB first model |
+| Linux (Debian/Ubuntu) | — | tested on Debian 13, Ubuntu 22.04+ |
+| Free disk ≥17 GB (image + first model) | — | `df -h` |
+| `curl` | yes (apt) | seed: you need it at least once for rustup |
+| Rust toolchain | yes (rustup, no sudo) | offered during install |
+| `jq`, `git`, `watch` | yes (apt) | doctor handles these |
+| Docker + user in `docker` group | **no** | install per https://docs.docker.com/engine/install/ |
+| NVIDIA driver 550+ | **no** | `sudo apt install nvidia-driver-550 && sudo reboot` |
+| `nvidia-container-toolkit` | yes (apt + sudo) | doctor handles it with explicit confirmation |
 
-`curl` and `jq` are also expected for HTTP diagnostics; both are usually
-already present.
+> **No NVIDIA GPU?** Run **`vello doctor --cpu --yes`** after install. The
+> CPU runtime is fully supported: vello builds a separate CPU-only image
+> (~500 MB vs ~5 GB for CUDA) and the catalog is filtered to models that
+> actually fit and run at usable speed on a laptop. Performance: tiny
+> models (1.5–4B) get 8–30 tok/s, 7–8B densos 2–5 tok/s, MoE 30B/3B-active
+> 5–15 tok/s. Switch back with `vello doctor --gpu` any time.
+
+Once `vello` is built, run **`./vello doctor`** any time to re-audit the host.
+
+### Running on CPU
+
+The catalog tags each model with `targets = ["gpu"]`, `["cpu"]`, or
+`["gpu", "cpu"]`. In CPU mode (`vello doctor --cpu`):
+
+- `vello list` hides models without `cpu` in targets — `vello list --all`
+  shows everything (gpu-only entries appear with Tier D).
+- `vello recommend` ranks MoE architectures ~10% higher because only the
+  active parameters are computed per token, making `qwen3-30b-a3b` (active
+  3B) run faster than a dense 7B despite the larger file.
+- `vello install <gpu-only-id>` bails clearly instead of silently producing
+  a broken stack.
+- The resolver writes `LLAMA_NGL=0`, `LLAMA_FLASH_ATTN=off`, caps
+  `LLAMA_CTX≤8192`, shrinks batch/ubatch, and sizes `--threads` to the
+  physical CPU core count (not SMT pairs). All managed via `.env`.
+- `vello build` constructs only the CPU image; the CUDA image is skipped
+  unless you run `vello build --all`.
 
 ### What the installer does
 
 ```bash
 git clone https://github.com/Colgate13/vello-llama.git
 cd vello-llama
-./vello-installer install
+./vello-installer install         # interactive: prompts for sudo + decisions
+./vello-installer install --yes   # unattended (CI, fresh servers)
 ```
 
-Six steps, ~12–20 minutes total (most of it is the Docker image build, which
-is cached after first run):
+Six steps. The installer does the bare minimum bootstrap and delegates host
+checks to `vello doctor`, so the logic lives in one place:
 
 | Step | What happens | Why |
 |---|---|---|
-| 1. Prerequisites | Verifies `docker`, `curl`, `nvidia-smi` are on PATH and Docker daemon is reachable | Fail fast with actionable errors |
-| 2. nvidia-container-toolkit | Asks for `sudo`, adds NVIDIA's apt repo, installs the toolkit, restarts Docker | Lets Docker containers see the GPU |
-| 3. GPU smoke test | Runs `docker run --gpus all nvidia/cuda nvidia-smi -L` | Confirms passthrough actually works |
-| 4. Build llama-server image | Compiles llama.cpp inside Docker, pinned to CUDA 12.4 | Avoids the official image (which needs driver 555+) |
-| 5. Rust toolchain | If `cargo` not on PATH, offers `rustup` install in `$HOME` (no sudo) | Required to build `vello` from source |
-| 6. Build vello | `cargo build --release` and symlink `./vello` | The catalog CLI you'll use daily |
+| 1. Bootstrap preflight | Verifies `curl`, `cargo` (or rustup-installable), disk space | Only what's needed to build the binary |
+| 2. Rust toolchain | If `cargo` not on PATH, offers `rustup` install in `$HOME` (no sudo) | Needed to build `vello` from source |
+| 3. Build vello | `cargo build --release`, symlink `./vello` | Produces the binary used by step 4 |
+| 4. `vello doctor --installer-mode --fix --deep` | Diagnoses everything; auto-installs fixable items with confirmation (or `--yes`); detects CPU vs GPU mode | Single source of truth for host checks |
+| 5. Build llama-server image | Mode-aware. GPU host → CUDA image (~5 GB, pinned to CUDA 12.4). CPU host → slim image (~500 MB). | One image per host; `vello build --all` builds both for distribution. |
+| 6. Symlink into PATH | Links `./vello` into `~/.local/bin` | So you can call `vello` from anywhere |
 
 When it finishes, you'll have:
 
@@ -213,6 +292,23 @@ speed because only the active parameters live in VRAM.
 
 ### 2. Install and switch
 
+**Where do models come from?** Every catalog entry points to a public
+HuggingFace **GGUF repo** — typically a mirror by
+[bartowski](https://huggingface.co/bartowski) or
+[unsloth](https://huggingface.co/unsloth). For example, `qwen3-8b` in the
+default catalog has `repo = "bartowski/Qwen_Qwen3-8B-GGUF"` and a `files`
+table mapping each quant to a filename inside that repo. `vello install`
+resolves that to a download URL like:
+
+```
+https://huggingface.co/bartowski/Qwen_Qwen3-8B-GGUF/resolve/main/Qwen_Qwen3-8B-Q5_K_M.gguf
+```
+
+…and pulls it with `curl` straight into `./models/`. **No HuggingFace token
+required** — bartowski/unsloth GGUF repos are public, and vello doesn't talk
+to the HF API (no metadata, no auth). The file rename is atomic (`.partial`
+→ final), so an interrupted download won't leave a corrupt model on disk.
+
 ```bash
 ./vello install qwen3-8b           # auto-pick best quant + download + apply + restart
 ./vello install qwen3-30b-a3b -q Q4_K_M   # force a specific quant
@@ -227,15 +323,24 @@ speed because only the active parameters live in VRAM.
 
 **What `install` actually does:**
 
-1. Looks up the model in all loaded catalogs.
-2. Picks the best quantization for your hardware (Q5_K_M if it fits VRAM, else
-   Q4_K_M, then descends to IQ3/IQ2 only as a last resort).
-3. Downloads the GGUF from the catalog's HuggingFace repo via `curl`.
-4. If the model declares a vision `mmproj`, downloads that too.
+1. Looks up the model id in all loaded catalogs (`catalogs/*.toml`) and
+   reads its `repo` + `files` map.
+2. Picks the best quantization for your hardware (Q5_K_M if it fits VRAM,
+   else Q4_K_M, then descends to IQ3/IQ2 only as a last resort).
+3. Composes the URL
+   `https://huggingface.co/<repo>/resolve/main/<file>?download=true` and
+   streams it via `curl --fail -L` with a progress bar into
+   `./models/<file>.partial`, then renames to the final path on success.
+4. If the model declares a vision `mmproj`, fetches that file too from the
+   same repo (same URL pattern).
 5. Calls `vello apply` to regenerate `.env` from `system.toml` + the model's
    `[model.runtime]` block.
 6. Restarts the docker stack if it is already running. **The first time, the
    stack is not running yet — finish with `./vello up`.**
+
+> Want a model not in the catalog? Add it (or your own private mirror) via
+> a community catalog under `catalogs/user/`. See
+> [Catalog format](#format) below — a 12-line TOML is enough.
 
 ### 3. Control the stack
 
@@ -259,6 +364,10 @@ Direct wrappers around `docker compose`. None require sudo.
 ### 4. Diagnose
 
 ```bash
+./vello doctor            # full host audit (OS, disk, docker, GPU, ports)
+./vello doctor --json     # machine-readable (CI / scripts)
+./vello doctor --fix      # auto-install fixable items (with confirmation)
+./vello doctor --cpu      # force CPU mode (persists in profile.toml)
 ./vello health            # is the API responding?
 ./vello gpu               # live nvidia-smi (Ctrl-C to exit)
 ./vello bench             # throughput benchmark (default 256 tokens)
@@ -266,10 +375,11 @@ Direct wrappers around `docker compose`. None require sudo.
 ./vello test              # tool-calling smoke test on the active model
 ```
 
-`bench` is the fastest sanity check after `install`. `test` is what you run
-when you suspect the active model can't do tool calling — it sends a known
-tool-call prompt and verifies the model returns structured output, not free
-text.
+`doctor` is the first stop when anything looks wrong. `bench` is the
+fastest sanity check after `install`. `test` is what you run when you
+suspect the active model can't do tool calling — it sends a known
+tool-call prompt and verifies the model returns structured output, not
+free text.
 
 ### 5. Tune
 
@@ -530,6 +640,13 @@ Pre-baked configs ship in `clients/`. Copy them to `~/.config/opencode/` and
 ---
 
 ## Troubleshooting
+
+**First stop**: run `./vello doctor`. It checks every requirement at once
+(OS, disk, Docker, NVIDIA, ports, paths) and prints a one-line fix per
+problem. For CI/scripts: `./vello doctor --json` returns a stable JSON
+object with exit codes `0` (ok or warns only), `1` (auto-fixable fails),
+`2` (driver/Docker/distro issues). Add `--fix --yes` to auto-install
+fixable items unattended.
 
 <details>
 <summary><b><code>:3000</code> doesn't respond right after <code>vello up</code></b></summary>

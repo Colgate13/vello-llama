@@ -1,23 +1,29 @@
 #!/usr/bin/env bash
 # vello-installer — one-shot bootstrap for the vello-llama stack.
 #
-# This script does ONE thing: get the system ready to run `vello`. After that,
-# all daily use goes through the Rust binary at ./vello.
+# This script does the ABSOLUTE MINIMUM needed to compile the `vello` Rust
+# binary and then delegates everything else (system checks, auto-install of
+# nvidia-container-toolkit, mode detection, etc.) to `./vello doctor`. That
+# keeps the install logic in one place — the Rust doctor module — instead of
+# duplicating it across bash + Rust.
 #
-# Steps:
-#   1. Verify host prerequisites (docker, curl, nvidia-smi).
-#   2. Install nvidia-container-toolkit if missing (sudo).
-#   3. Smoke-test GPU passthrough.
-#   4. Build the llama-server Docker image (one-time, ~10-15 min).
-#   5. Install Rust toolchain if missing (offered, never forced).
-#   6. Build the `vello` binary.
-#   7. Expose `vello` on PATH via ~/.local/bin (no sudo, reversible).
+# Steps (in order):
+#   1. bootstrap_preflight  — collect ALL blockers at once (no fail-fast).
+#   2. ensure_rust          — install rustup if missing (interactive prompt).
+#   3. build_vello          — cargo build --release.
+#   4. ./vello doctor       — diagnoses every other requirement and offers
+#                             auto-install of fixable items (curl, jq, git,
+#                             watch, nvidia-container-toolkit) with confirm.
+#   5. docker compose build — llama-server image (one-time, ~10-15 min).
+#   6. link_into_path       — symlink ~/.local/bin/vello → ./vello.
 
 set -euo pipefail
 
-VERSION="0.4.0"
+VERSION="0.5.0"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
+
+ASSUME_YES=0
 
 # ---------------------------------------------------------------------------
 # Pretty output
@@ -31,92 +37,95 @@ else
   C_DIM=''; C_BLD=''; C_RST=''
 fi
 
-log()   { printf "%s\n" "$*"; }
-info()  { printf "${C_CYN}==>${C_RST} %s\n" "$*"; }
-ok()    { printf "${C_GRN} ok ${C_RST} %s\n" "$*"; }
+# All status output goes to stderr so callers can pipe stdout — e.g.
+# `./vello-installer doctor --json | jq` — without mixing the installer's
+# progress messages with the doctor's JSON payload.
+log()   { printf "%s\n" "$*" >&2; }
+info()  { printf "${C_CYN}==>${C_RST} %s\n" "$*" >&2; }
+ok()    { printf "${C_GRN} ok ${C_RST} %s\n" "$*" >&2; }
 warn()  { printf "${C_YEL}warn${C_RST} %s\n" "$*" >&2; }
 err()   { printf "${C_RED}fail${C_RST} %s\n" "$*" >&2; }
 fatal() { err "$*"; exit 1; }
 
-require_cmd() {
-  command -v "$1" >/dev/null || fatal "$1 not found in PATH. Install it and retry."
-}
-
-# ---------------------------------------------------------------------------
-# Bootstrap
-# ---------------------------------------------------------------------------
-cmd_install() {
-  info "1/7 Checking prerequisites"
-  for c in docker curl nvidia-smi; do require_cmd "$c"; done
-  docker info >/dev/null 2>&1 || \
-    fatal "Docker daemon not accessible. Add yourself to the docker group: sudo usermod -aG docker \$USER"
-  ok "all prerequisites present"
-
-  info "2/7 nvidia-container-toolkit"
-  if dpkg -l nvidia-container-toolkit >/dev/null 2>&1; then
-    ok "already installed ($(dpkg-query -W -f='${Version}' nvidia-container-toolkit))"
-  else
-    install_nvidia_toolkit
+confirm() {
+  # confirm <prompt>   → 0 if user accepts, 1 otherwise. Bypassed by --yes.
+  local prompt="$1"
+  if (( ASSUME_YES )); then return 0; fi
+  if [[ ! -t 0 ]]; then
+    err "$prompt — refusing in non-interactive mode without --yes"
+    return 1
   fi
-
-  info "3/7 GPU passthrough smoke test"
-  if docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi -L >/dev/null 2>&1; then
-    ok "Docker can reach the GPU"
-  else
-    fatal "Docker cannot reach the GPU. Try: sudo systemctl restart docker"
-  fi
-
-  info "4/7 Build llama-server image (10-15 min one-time, cached after)"
-  if docker image inspect vello/llama-server-cuda:12.4 >/dev/null 2>&1; then
-    ok "image already built"
-  else
-    docker compose build llama-server
-    ok "image built"
-  fi
-
-  info "5/7 Rust toolchain"
-  ensure_rust
-
-  info "6/7 Build vello binary"
-  build_vello
-
-  info "7/7 Expose vello on PATH"
-  link_into_path
-
+  local reply
+  read -rp "$prompt [y/N] " -n 1 reply
   echo
-  printf '%s\n\n' "${C_GRN}${C_BLD}Setup complete.${C_RST} You can now run ${C_CYN}vello${C_RST} from anywhere:"
-  log "  vello recommend chat        # browse picks for your hardware"
-  log "  vello install qwen3-8b      # download + start"
-  log "  vello status                # is it running?"
-  log "  vello --help                # everything else"
+  [[ "$reply" =~ ^[Yy]$ ]]
 }
 
-install_nvidia_toolkit() {
-  info "installing nvidia-container-toolkit (sudo required)"
-  curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
-    | sudo gpg --batch --yes --dearmor \
-        -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-  curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
-    | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
-    | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list >/dev/null
-  sudo apt-get update -y
-  sudo apt-get install -y nvidia-container-toolkit
-  sudo nvidia-ctk runtime configure --runtime=docker
-  sudo systemctl restart docker
-  ok "installed and Docker restarted"
+# ---------------------------------------------------------------------------
+# 1. Bootstrap preflight — only what blocks `cargo build`.
+#    Everything else (docker, jq, nvidia toolkit, ports, disk-for-models)
+#    is the doctor's job and runs after the binary exists.
+# ---------------------------------------------------------------------------
+bootstrap_preflight() {
+  info "1/6 Bootstrap preflight (checks needed to build vello)"
+
+  local fail=0
+  local rows=()
+
+  # curl: needed for rustup install AND for doctor's nvidia-toolkit fetch
+  if command -v curl >/dev/null 2>&1; then
+    rows+=("${C_GRN} ok ${C_RST} curl                 $(curl --version | head -n1 | awk '{print $1, $2}')")
+  else
+    rows+=("${C_RED}fail${C_RST} curl                 install: sudo apt install -y curl")
+    fail=1
+  fi
+
+  # cargo: either present, or we'll offer to install via rustup in step 2.
+  if command -v cargo >/dev/null 2>&1; then
+    rows+=("${C_GRN} ok ${C_RST} cargo                $(cargo --version)")
+  elif [[ -f "$HOME/.cargo/env" ]]; then
+    rows+=("${C_YEL}warn${C_RST} cargo                installed in ~/.cargo but not sourced (will source)")
+  else
+    rows+=("${C_YEL}warn${C_RST} cargo                missing — step 2 will offer rustup install")
+  fi
+
+  # Disk free in $PROJECT_ROOT — coreutils df (Debian-family). Defaults to 0
+  # on parse failure so we never error out under `set -u` / arithmetic with
+  # an empty value.
+  local free_gb
+  free_gb=$(df -BG --output=avail "$PROJECT_ROOT" 2>/dev/null | tail -n1 | tr -d 'G ' || echo 0)
+  free_gb=${free_gb:-0}
+  if ! [[ "$free_gb" =~ ^[0-9]+$ ]]; then free_gb=0; fi
+  if [[ "$free_gb" -ge 17 ]]; then
+    rows+=("${C_GRN} ok ${C_RST} disk free            ${free_gb} GB in ${PROJECT_ROOT}")
+  elif [[ "$free_gb" -ge 5 ]]; then
+    rows+=("${C_YEL}warn${C_RST} disk free            ${free_gb} GB — image + first model usually need ~17 GB")
+  else
+    rows+=("${C_RED}fail${C_RST} disk free            ${free_gb} GB — need at least 5 GB to even build, ~17 to use")
+    fail=1
+  fi
+
+  for r in "${rows[@]}"; do log "  $r"; done
+
+  if (( fail )); then
+    echo
+    fatal "Resolve the items marked ${C_RED}fail${C_RST} above and re-run: ./vello-installer install"
+  fi
 }
 
+# ---------------------------------------------------------------------------
+# 2. Rust toolchain (chicken-and-egg: doctor binary doesn't exist yet)
+# ---------------------------------------------------------------------------
 ensure_rust() {
-  # Already on PATH?
-  if command -v cargo >/dev/null; then
+  info "2/6 Rust toolchain"
+  if command -v cargo >/dev/null 2>&1; then
     ok "rust already installed ($(cargo --version | awk '{print $2}'))"
     return 0
   fi
-  # Installed via rustup but not sourced in this shell?
   if [[ -f "$HOME/.cargo/env" ]]; then
     # shellcheck disable=SC1091
     source "$HOME/.cargo/env"
-    if command -v cargo >/dev/null; then
+    if command -v cargo >/dev/null 2>&1; then
       ok "rust found in ~/.cargo (sourced for this run)"
       return 0
     fi
@@ -125,12 +134,8 @@ ensure_rust() {
   log "  vello (the catalog CLI) is built from Rust source."
   log "  Installer: rustup, runs entirely in \$HOME (no sudo)."
   log "  Reverse with: rustup self uninstall"
-  if [[ -t 0 ]]; then
-    read -rp "Install Rust now via rustup? [Y/n] " -n 1 reply
-    echo
-    if [[ "$reply" =~ ^[Nn]$ ]]; then
-      fatal "Rust required to build vello. Install manually then re-run: ./vello-installer install"
-    fi
+  if ! confirm "Install Rust now via rustup?"; then
+    fatal "Rust required to build vello. Install manually then re-run: ./vello-installer install"
   fi
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
   # shellcheck disable=SC1091
@@ -138,7 +143,11 @@ ensure_rust() {
   ok "rust installed"
 }
 
+# ---------------------------------------------------------------------------
+# 3. Build vello
+# ---------------------------------------------------------------------------
 build_vello() {
+  info "3/6 Build vello binary"
   if [[ ! -d "$PROJECT_ROOT/vello-cli" ]]; then
     fatal "vello-cli/ source missing — broken checkout?"
   fi
@@ -147,16 +156,73 @@ build_vello() {
   ok "built ./vello"
 }
 
-# Symlink ~/.local/bin/vello → ./vello so the user can call `vello` anywhere.
-# User-scoped, no sudo. Reverse with: rm ~/.local/bin/vello
+# ---------------------------------------------------------------------------
+# 4. Delegate every other check to the Rust doctor.
+#    --installer-mode = "I'm being driven by the installer; pick CPU mode
+#                       automatically with --yes; include the deep
+#                       (GPU-passthrough) smoke test."
+# ---------------------------------------------------------------------------
+run_doctor() {
+  info "4/6 Host diagnostics (delegated to ./vello doctor)"
+  local args=(doctor --installer-mode --fix --deep)
+  if (( ASSUME_YES )); then
+    args+=(--yes)
+  fi
+  if ! "$PROJECT_ROOT/vello" "${args[@]}"; then
+    local rc=$?
+    if (( rc == 1 )); then
+      warn "doctor reported recoverable fails — re-run with --yes to auto-install"
+    elif (( rc == 2 )); then
+      err "doctor reported unrecoverable fails (likely driver/docker). Fix the hints above and re-run."
+    else
+      err "doctor failed (exit $rc)"
+    fi
+    exit "$rc"
+  fi
+  ok "doctor passed"
+}
+
+# ---------------------------------------------------------------------------
+# 5. Build the llama-server Docker image (one-time, cached after).
+#    Delegates to `./vello build`, which reads profile.toml's `mode` field
+#    and picks the right Dockerfile (CUDA for gpu, plain ubuntu for cpu).
+# ---------------------------------------------------------------------------
+build_image() {
+  info "5/6 Build llama-server image (10-15 min one-time, cached after)"
+  # Read mode from profile.toml. Default to gpu for back-compat with profiles
+  # written before mode existed.
+  local mode="gpu"
+  if [[ -f "$PROJECT_ROOT/profile.toml" ]]; then
+    local persisted
+    persisted=$(grep -E '^mode = "' "$PROJECT_ROOT/profile.toml" | head -n1 | sed -E 's/^mode = "([^"]+)".*/\1/')
+    if [[ -n "$persisted" ]]; then mode="$persisted"; fi
+  fi
+  local image_tag
+  if [[ "$mode" == "cpu" ]]; then
+    image_tag="vello/llama-server-cpu:latest"
+  else
+    image_tag="vello/llama-server-cuda:12.4"
+  fi
+  if docker image inspect "$image_tag" >/dev/null 2>&1; then
+    ok "image already built ($image_tag)"
+    return 0
+  fi
+  log "  building $image_tag (mode=$mode)"
+  "$PROJECT_ROOT/vello" build
+  ok "image built"
+}
+
+# ---------------------------------------------------------------------------
+# 6. Link the binary into ~/.local/bin so users can call `vello` anywhere
+# ---------------------------------------------------------------------------
 link_into_path() {
+  info "6/6 Expose vello on PATH"
   local bin_dir="$HOME/.local/bin"
   local target="$bin_dir/vello"
   local source="$PROJECT_ROOT/vello"
 
   mkdir -p "$bin_dir"
 
-  # If something else already lives there, don't clobber it silently.
   if [[ -e "$target" || -L "$target" ]]; then
     local current
     current="$(readlink -f "$target" 2>/dev/null || true)"
@@ -172,7 +238,6 @@ link_into_path() {
     ok "linked $target → $source"
   fi
 
-  # Confirm the directory is actually on PATH for this user's shell.
   case ":$PATH:" in
     *":$bin_dir:"*) ok "$bin_dir is on PATH" ;;
     *)
@@ -185,6 +250,35 @@ link_into_path() {
 }
 
 # ---------------------------------------------------------------------------
+# Top-level command
+# ---------------------------------------------------------------------------
+cmd_install() {
+  bootstrap_preflight
+  ensure_rust
+  build_vello
+  run_doctor
+  build_image
+  link_into_path
+
+  echo
+  printf '%s\n\n' "${C_GRN}${C_BLD}Setup complete.${C_RST} You can now run ${C_CYN}vello${C_RST} from anywhere:"
+  log "  vello recommend chat        # browse picks for your hardware"
+  log "  vello install qwen3-8b      # download + start"
+  log "  vello status                # is it running?"
+  log "  vello doctor                # re-check host any time"
+  log "  vello --help                # everything else"
+}
+
+cmd_doctor() {
+  # Convenience: lets users run `./vello-installer doctor` before they have
+  # a built binary. We bootstrap-build vello first and then exec doctor.
+  bootstrap_preflight
+  ensure_rust
+  build_vello
+  exec "$PROJECT_ROOT/vello" doctor "$@"
+}
+
+# ---------------------------------------------------------------------------
 # Help / version
 # ---------------------------------------------------------------------------
 cmd_version() { echo "vello-installer v$VERSION"; }
@@ -194,28 +288,53 @@ cmd_help() {
 ${C_BLD}vello-installer${C_RST} v$VERSION — one-shot bootstrap for the vello-llama stack.
 
 ${C_CYN}USAGE${C_RST}
-  ./vello-installer install   Deps, GPU toolkit, Docker image, Rust, vello build,
-                              and a ~/.local/bin/vello symlink so you can run
-                              ${C_CYN}vello${C_RST} from anywhere.
+  ./vello-installer install [-y|--yes]
+      Bootstrap, build the Rust binary, delegate host checks to ${C_CYN}vello doctor${C_RST},
+      build the Docker image, and symlink ${C_CYN}vello${C_RST} into ~/.local/bin.
+      With ${C_CYN}--yes${C_RST}: no prompts (CI / unattended servers).
+
+  ./vello-installer doctor [doctor-flags]
+      Build vello if needed, then run ${C_CYN}vello doctor${C_RST}. Same flags as the
+      Rust subcommand (--json, --cpu, --gpu, --deep, etc.).
+
   ./vello-installer version
+  ./vello-installer help
 
 After bootstrap, daily use is via ${C_CYN}vello${C_RST} (no ./ needed):
   vello recommend chat
   vello install <id>
   vello up / down / status / logs / health
+  vello doctor
   vello --help
 
 EOF
 }
 
 # ---------------------------------------------------------------------------
-# Dispatch
+# Dispatch — supports `-y`/`--yes` anywhere on the line for the install path.
 # ---------------------------------------------------------------------------
 main() {
+  local positional=()
+  for arg in "$@"; do
+    case "$arg" in
+      -y|--yes) ASSUME_YES=1 ;;
+      *)        positional+=("$arg") ;;
+    esac
+  done
+  # Cleanly re-set positional args. The intermediate guard is needed because
+  # `set -- "${positional[@]:-}"` would inject an empty "" arg when the array
+  # is empty, which then masks the cmd dispatch.
+  if [[ ${#positional[@]} -eq 0 ]]; then
+    set --
+  else
+    set -- "${positional[@]}"
+  fi
+
   local cmd="${1:-help}"
   shift || true
   case "$cmd" in
     install)              cmd_install "$@" ;;
+    doctor)               cmd_doctor "$@" ;;
     version|-v|--version) cmd_version ;;
     help|-h|--help|"")    cmd_help ;;
     *)

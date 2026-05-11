@@ -5,7 +5,7 @@
 //! active params need to live in VRAM hot path; total weight goes to RAM via
 //! llama.cpp's --n-cpu-moe.
 
-use crate::schema::{Architecture, Model, Profile, Tier};
+use crate::schema::{Architecture, Mode, Model, Profile, Target, Tier};
 
 /// Quant order, from highest quality to lowest.
 const QUANT_PREFERENCE: &[&str] = &[
@@ -38,7 +38,7 @@ pub struct Pick {
 pub fn pick_explicit(model: &Model, profile: &Profile, quant: &str) -> Option<Pick> {
     let file = model.files.get(quant)?;
     let size = quant_file_size_gb(model.params_total_b, quant);
-    let (vram_need, ram_need) = need(model, size);
+    let (vram_need, ram_need) = need(model, size, profile);
     Some(Pick {
         quant: quant.to_string(),
         file: file.clone(),
@@ -50,8 +50,8 @@ pub fn pick_explicit(model: &Model, profile: &Profile, quant: &str) -> Option<Pi
 }
 
 pub fn pick(model: &Model, profile: &Profile, _strategy: Strategy) -> Option<Pick> {
-    let budget_vram = (profile.vram_gb - profile.vram_reserve_gb - kv_cache_gb(profile)).max(0.0);
-    let budget_ram = (profile.ram_gb - profile.ram_reserve_gb).max(0.0);
+    let budget_vram = budget_vram(profile);
+    let budget_ram = budget_ram(profile);
 
     // Balanced strategy: try Q5_K_M for VRAM-fit; if it doesn't fit, fall back
     // to Q4_K_M; if that also overflows, descend through preference order.
@@ -59,7 +59,7 @@ pub fn pick(model: &Model, profile: &Profile, _strategy: Strategy) -> Option<Pic
     for q in preferred {
         if let Some(file) = model.files.get(q) {
             let size = quant_file_size_gb(model.params_total_b, q);
-            let (vram_need, ram_need) = need(model, size);
+            let (vram_need, ram_need) = need(model, size, profile);
             if vram_need <= budget_vram && ram_need <= budget_ram {
                 return Some(Pick {
                     quant: q.into(),
@@ -77,12 +77,16 @@ pub fn pick(model: &Model, profile: &Profile, _strategy: Strategy) -> Option<Pic
     // the QUANT_PREFERENCE list (largest → smallest) and returns the first
     // match. The intent: prefer Q4 with mild offload over Q5 with heavy
     // offload for borderline-sized dense models like 14B on 8 GB.
+    //
+    // In CPU mode, budget_vram is 0 and `vram_need <= 0 * t` never holds,
+    // so the strict passes naturally short-circuit and we hit the
+    // RAM-inclusive final pass — which is what we want.
     let thresholds: [Option<f32>; 3] = [Some(1.0), Some(1.5), None];
     for threshold in thresholds {
         for q in QUANT_PREFERENCE {
             if let Some(file) = model.files.get(*q) {
                 let size = quant_file_size_gb(model.params_total_b, q);
-                let (vram_need, ram_need) = need(model, size);
+                let (vram_need, ram_need) = need(model, size, profile);
                 let fits = match threshold {
                     Some(t) => vram_need <= budget_vram * t,
                     None => (vram_need + ram_need) <= (budget_vram + budget_ram),
@@ -108,15 +112,36 @@ pub fn pick(model: &Model, profile: &Profile, _strategy: Strategy) -> Option<Pic
 pub fn forced_tier(model: &Model, profile: &Profile) -> Tier {
     let q = &model.default_quant;
     let size = quant_file_size_gb(model.params_total_b, q);
-    let (vram_need, ram_need) = need(model, size);
+    let (vram_need, ram_need) = need(model, size, profile);
     classify(model, vram_need, ram_need, profile)
 }
 
-fn need(model: &Model, size_gb: f32) -> (f32, f32) {
+fn budget_vram(profile: &Profile) -> f32 {
+    match profile.mode {
+        Mode::Gpu => (profile.vram_gb - profile.vram_reserve_gb - kv_cache_gb(profile)).max(0.0),
+        // No VRAM budget in CPU mode — everything fits-or-doesn't via RAM.
+        Mode::Cpu => 0.0,
+    }
+}
+
+fn budget_ram(profile: &Profile) -> f32 {
+    match profile.mode {
+        Mode::Gpu => (profile.ram_gb - profile.ram_reserve_gb).max(0.0),
+        // KV cache also lives in RAM in CPU mode, so account for it here.
+        Mode::Cpu => (profile.ram_gb - profile.ram_reserve_gb - kv_cache_gb(profile)).max(0.0),
+    }
+}
+
+fn need(model: &Model, size_gb: f32, profile: &Profile) -> (f32, f32) {
+    if profile.mode == Mode::Cpu {
+        // In CPU mode, everything sits in RAM — Dense and MoE alike. The
+        // `--n-cpu-moe` offload only changes routing, not footprint.
+        return (0.0, size_gb);
+    }
     match model.architecture {
         Architecture::Dense => (size_gb, 0.0),
         Architecture::Moe => {
-            // For MoE, only active experts need VRAM; rest goes to RAM.
+            // For MoE on GPU, only active experts need VRAM; rest goes to RAM.
             let active = model.params_active_b.unwrap_or(model.params_total_b);
             let active_size = size_gb * (active / model.params_total_b);
             let rest = (size_gb - active_size).max(0.0);
@@ -127,22 +152,29 @@ fn need(model: &Model, size_gb: f32) -> (f32, f32) {
 }
 
 fn classify(model: &Model, vram_need: f32, ram_need: f32, profile: &Profile) -> Tier {
-    let budget_vram = (profile.vram_gb - profile.vram_reserve_gb - kv_cache_gb(profile)).max(0.0);
-    let budget_ram = (profile.ram_gb - profile.ram_reserve_gb).max(0.0);
+    match profile.mode {
+        Mode::Gpu => classify_gpu(model, vram_need, ram_need, profile),
+        Mode::Cpu => classify_cpu(model, ram_need, profile),
+    }
+}
 
-    if vram_need + ram_need > budget_vram + budget_ram {
+fn classify_gpu(model: &Model, vram_need: f32, ram_need: f32, profile: &Profile) -> Tier {
+    let bv = budget_vram(profile);
+    let br = budget_ram(profile);
+
+    if vram_need + ram_need > bv + br {
         return Tier::D;
     }
 
     // Dense path
     if matches!(model.architecture, Architecture::Dense) {
-        if vram_need <= budget_vram * 0.95 {
+        if vram_need <= bv * 0.95 {
             return Tier::S;
         }
-        if vram_need <= budget_vram * 1.05 {
+        if vram_need <= bv * 1.05 {
             return Tier::A;
         }
-        let ram_share = (vram_need - budget_vram) / (budget_vram + budget_ram);
+        let ram_share = (vram_need - bv) / (bv + br);
         if ram_share < 0.4 {
             return Tier::B;
         }
@@ -150,13 +182,46 @@ fn classify(model: &Model, vram_need: f32, ram_need: f32, profile: &Profile) -> 
     }
 
     // MoE: B is the natural home (some VRAM hot path, rest in RAM).
-    if vram_need <= budget_vram && ram_need <= budget_ram * 0.5 {
+    if vram_need <= bv && ram_need <= br * 0.5 {
         return Tier::A;
     }
-    if vram_need <= budget_vram && ram_need <= budget_ram {
+    if vram_need <= bv && ram_need <= br {
         return Tier::B;
     }
     Tier::C
+}
+
+fn classify_cpu(model: &Model, ram_need: f32, profile: &Profile) -> Tier {
+    // Models the curator explicitly excluded from CPU are always Tier D.
+    if !model.supports(Target::Cpu) {
+        return Tier::D;
+    }
+
+    let br = budget_ram(profile);
+    if ram_need > br {
+        return Tier::D;
+    }
+
+    // MoE benefits from CPU: only `active` parameters are computed per token.
+    // Use active params (when declared) as the "effective" size for speed
+    // estimation; total params still need to fit in RAM (footprint).
+    let effective = model
+        .params_active_b
+        .unwrap_or(model.params_total_b);
+
+    if effective <= 4.0 && ram_need <= br * 0.5 {
+        return Tier::S;
+    }
+    if effective <= 4.0 {
+        return Tier::A;
+    }
+    if effective <= 8.0 {
+        return Tier::B;
+    }
+    if effective <= 14.0 {
+        return Tier::C;
+    }
+    Tier::D
 }
 
 /// Empirical bytes/parameter for common quants. Used to estimate file size
@@ -195,7 +260,7 @@ fn kv_cache_gb(profile: &Profile) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::Architecture;
+    use crate::schema::{Architecture, Target};
     use std::collections::BTreeMap;
 
     fn dense_model(id: &str, params_b: f32, quants: &[&str]) -> Model {
@@ -212,6 +277,7 @@ mod tests {
             params_active_b: None,
             architecture: Architecture::Dense,
             modalities: vec!["text".into()],
+            targets: vec![Target::Gpu],
             tags: vec![],
             experimental: false,
             description: String::new(),
@@ -297,5 +363,81 @@ mod tests {
         let small = quant_file_size_gb(7.0, "Q4_K_M");
         let big = quant_file_size_gb(14.0, "Q4_K_M");
         assert!((big - 2.0 * small).abs() < 0.01);
+    }
+
+    // ---- CPU mode classifier ----------------------------------------------
+
+    fn cpu_profile(ram_gb: f32) -> Profile {
+        Profile {
+            mode: Mode::Cpu,
+            vram_gb: 0.0,
+            ram_gb,
+            ..Profile::default()
+        }
+    }
+
+    fn dense_model_with_targets(
+        id: &str,
+        params_b: f32,
+        quants: &[&str],
+        targets: Vec<Target>,
+    ) -> Model {
+        let mut m = dense_model(id, params_b, quants);
+        m.targets = targets;
+        m
+    }
+
+    #[test]
+    fn cpu_small_dense_fits_high_tier() {
+        // phi-4-mini-equivalent: 3.8B Q4 ~2.2 GB, fits any laptop.
+        let m = dense_model_with_targets("phi", 3.8, &["Q4_K_M"], vec![Target::Cpu, Target::Gpu]);
+        let p = cpu_profile(32.0);
+        let pick = pick(&m, &p, Strategy::Balanced).unwrap();
+        assert!(matches!(pick.tier, Tier::S | Tier::A));
+        assert_eq!(pick.vram_need_gb, 0.0);
+        assert!(pick.ram_need_gb > 0.0);
+    }
+
+    #[test]
+    fn cpu_dense_7b_lands_in_tier_b() {
+        let m = dense_model_with_targets("qwen-7b", 7.6, &["Q4_K_M"], vec![Target::Cpu, Target::Gpu]);
+        let p = cpu_profile(32.0);
+        let pick = pick(&m, &p, Strategy::Balanced).unwrap();
+        assert!(matches!(pick.tier, Tier::B));
+    }
+
+    #[test]
+    fn cpu_dense_14b_lands_in_tier_c() {
+        let m = dense_model_with_targets("big", 14.0, &["Q4_K_M"], vec![Target::Cpu, Target::Gpu]);
+        let p = cpu_profile(32.0);
+        let pick = pick(&m, &p, Strategy::Balanced).unwrap();
+        assert!(matches!(pick.tier, Tier::C));
+    }
+
+    #[test]
+    fn cpu_moe_30b_a3b_lands_in_tier_a_or_s() {
+        // MoE: active params = 3B → fast on CPU. Footprint is large (30B*Q4) but
+        // ~17 GB fits in 32 GB RAM budget.
+        let mut m = moe_model("qwen3-30b-a3b", 30.0, 3.0);
+        m.targets = vec![Target::Cpu, Target::Gpu];
+        let p = cpu_profile(32.0);
+        let pick = pick(&m, &p, Strategy::Balanced).unwrap();
+        assert!(matches!(pick.tier, Tier::S | Tier::A));
+    }
+
+    #[test]
+    fn cpu_gpu_only_model_is_tier_d_even_if_small() {
+        // A small model marked gpu-only should still get Tier D in CPU mode
+        // so `vello list --all` makes the exclusion visible.
+        let m = dense_model_with_targets("small-gpu-only", 3.0, &["Q4_K_M"], vec![Target::Gpu]);
+        let p = cpu_profile(32.0);
+        assert_eq!(forced_tier(&m, &p), Tier::D);
+    }
+
+    #[test]
+    fn cpu_huge_dense_oom_returns_tier_d() {
+        let m = dense_model_with_targets("70b", 70.0, &["Q4_K_M"], vec![Target::Cpu]);
+        let p = cpu_profile(8.0); // small RAM
+        assert_eq!(forced_tier(&m, &p), Tier::D);
     }
 }

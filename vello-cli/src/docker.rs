@@ -1,7 +1,15 @@
 //! Wrappers around `docker compose` calls. All run with cwd set to the
 //! project root so they pick up the local docker-compose.yml.
+//!
+//! The compose file defines two mutually exclusive llama-server profiles —
+//! `cuda` and `cpu`. Commands that **start** containers (`up`, `restart`,
+//! `build`) take a `Mode` and pass `--profile <mode>` so docker compose only
+//! activates the matching service. Read-only / teardown commands (`down`,
+//! `status`, `logs`, `nuke`) operate on whatever happens to be running and
+//! don't filter by profile.
 
 use crate::paths::Paths;
+use crate::schema::Mode;
 use anyhow::{bail, Context, Result};
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -19,32 +27,26 @@ fn compose(paths: &Paths, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-fn compose_capture(paths: &Paths, args: &[&str]) -> Result<String> {
-    let out = Command::new("docker")
-        .arg("compose")
-        .args(args)
-        .current_dir(&paths.project_root)
-        .stderr(Stdio::inherit())
-        .output()
-        .with_context(|| "invoking docker compose")?;
-    if !out.status.success() {
-        bail!("docker compose {} failed", args.join(" "));
+/// `cuda` or `cpu` — the docker compose profile name for the current mode.
+pub fn profile_flag(mode: Mode) -> &'static str {
+    match mode {
+        Mode::Gpu => "cuda",
+        Mode::Cpu => "cpu",
     }
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
-pub fn up(paths: &Paths) -> Result<()> {
+pub fn up(paths: &Paths, mode: Mode) -> Result<()> {
     require_active_model(paths)?;
-    compose(paths, &["up", "-d"])
+    compose(paths, &["--profile", profile_flag(mode), "up", "-d"])
 }
 
 pub fn down(paths: &Paths) -> Result<()> {
     compose(paths, &["down"])
 }
 
-pub fn restart(paths: &Paths) -> Result<()> {
+pub fn restart(paths: &Paths, mode: Mode) -> Result<()> {
     down(paths)?;
-    up(paths)
+    up(paths, mode)
 }
 
 pub fn status(paths: &Paths) -> Result<()> {
@@ -65,12 +67,28 @@ pub fn logs(paths: &Paths, follow: bool, services: &[String]) -> Result<()> {
     compose(paths, &args)
 }
 
-pub fn build(paths: &Paths, no_cache: bool) -> Result<()> {
-    let mut args: Vec<&str> = vec!["build"];
+/// Build the llama-server image(s).
+///
+/// - `all=false`: build only the service for `mode` (typical case — saves disk
+///   and time on a host that only uses one runtime).
+/// - `all=true`: build both `llama-server-cuda` and `llama-server-cpu` (useful
+///   for testing or distributing to mixed hosts). The CUDA build still needs
+///   nvidia-container-toolkit on the host; failures are visible at build time.
+pub fn build(paths: &Paths, mode: Mode, no_cache: bool, all: bool) -> Result<()> {
+    let mut args: Vec<&str> = Vec::new();
+    if all {
+        args.extend_from_slice(&["--profile", "cuda", "--profile", "cpu"]);
+    } else {
+        args.extend_from_slice(&["--profile", profile_flag(mode)]);
+    }
+    args.push("build");
     if no_cache {
         args.push("--no-cache");
     }
-    args.push("llama-server");
+    // Without a service argument, compose builds every service in the active
+    // profile(s). Both `llama-server-cuda` and `llama-server-cpu` have
+    // `build:` blocks, `open-webui` does not, so this naturally builds only
+    // the llama-server image(s) we care about.
     compose(paths, &args)
 }
 
@@ -78,10 +96,25 @@ pub fn nuke(paths: &Paths) -> Result<()> {
     compose(paths, &["down", "-v", "--rmi", "all", "--remove-orphans"])
 }
 
-pub fn is_running(paths: &Paths) -> bool {
-    compose_capture(paths, &["ps", "llama-server", "--format", "{{.Status}}"])
-        .map(|s| s.contains("Up"))
-        .unwrap_or(false)
+pub fn is_running(_paths: &Paths) -> bool {
+    // Each profile has its own service name now (llama-server-cuda /
+    // llama-server-cpu) but both publish container_name=llama-server. The
+    // simplest reliable check is to inspect the host container by that
+    // shared name via plain docker — `docker compose ps llama-server` no
+    // longer works because there's no service with that name.
+    //
+    // `_paths` is kept on the signature so callers can keep their current
+    // call sites unchanged; we don't need the project root for `docker
+    // inspect`.
+    let out = Command::new("docker")
+        .args(["inspect", "-f", "{{.State.Running}}", "llama-server"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output();
+    match out {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim() == "true",
+        _ => false,
+    }
 }
 
 fn require_active_model(paths: &Paths) -> Result<()> {
@@ -136,4 +169,19 @@ pub fn hf_download(repo: &str, file: &str, dest: &Path) -> Result<()> {
     std::fs::rename(&partial, dest)
         .with_context(|| format!("rename {} → {}", partial.display(), dest.display()))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn profile_flag_maps_gpu_to_cuda() {
+        assert_eq!(profile_flag(Mode::Gpu), "cuda");
+    }
+
+    #[test]
+    fn profile_flag_maps_cpu_to_cpu() {
+        assert_eq!(profile_flag(Mode::Cpu), "cpu");
+    }
 }

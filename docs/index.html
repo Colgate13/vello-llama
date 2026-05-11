@@ -297,6 +297,44 @@
       margin: 0 0 32px;
     }
 
+    /* Hero pills — emphasize "GPU or CPU, auto-detected" */
+    .hero-pills {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin: -16px 0 28px;
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+    .hero-pill {
+      padding: 5px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border-2);
+      background: var(--surface);
+      color: var(--fg);
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    .hero-pill-gpu {
+      border-color: var(--green-line);
+      color: var(--green);
+      background: var(--green-dim);
+    }
+    .hero-pill-cpu {
+      border-color: rgba(121, 192, 255, 0.4);
+      color: var(--blue);
+      background: var(--blue-dim);
+    }
+    .hero-pill-or {
+      color: var(--fg-3);
+      font-style: italic;
+    }
+    .hero-pill-tail {
+      color: var(--fg-3);
+      margin-left: 4px;
+    }
+
     .cta {
       display: flex;
       flex-wrap: wrap;
@@ -707,6 +745,153 @@
     .step-cmd .pmt { color: var(--green); user-select: none; }
     .step-cmd .cmt { color: var(--fg-3); }
     .step-cmd .str { color: var(--blue); }
+    .step-cmd .kw  { color: var(--orange); }
+    .step-aside {
+      margin: 12px 0 0;
+      padding-left: 12px;
+      border-left: 2px solid var(--border-2);
+      font-size: 13.5px;
+      color: var(--fg-3);
+      line-height: 1.6;
+    }
+    .step-aside code {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--fg);
+    }
+    .step-aside a { color: var(--green); }
+
+    /* Install — two-pill GPU/CPU hint above the steps */
+    .install-hint {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin: 16px 0 32px;
+    }
+    .install-hint-pill {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 16px 18px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 14px;
+      color: var(--fg-2);
+      line-height: 1.55;
+    }
+    .install-hint-pill-tag {
+      align-self: flex-start;
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 3px 9px;
+      border-radius: 999px;
+      text-transform: lowercase;
+    }
+    .install-hint-pill-gpu {
+      border-color: var(--green-line);
+      background: linear-gradient(180deg, var(--green-dim), transparent 80%), var(--surface);
+    }
+    .install-hint-pill-gpu .install-hint-pill-tag {
+      color: var(--green);
+      background: var(--green-dim);
+      border: 1px solid var(--green-line);
+    }
+    .install-hint-pill-cpu {
+      border-color: rgba(121, 192, 255, 0.4);
+      background: linear-gradient(180deg, var(--blue-dim), transparent 80%), var(--surface);
+    }
+    .install-hint-pill-cpu .install-hint-pill-tag {
+      color: var(--blue);
+      background: var(--blue-dim);
+      border: 1px solid rgba(121, 192, 255, 0.4);
+    }
+    .install-hint-pill code {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--fg);
+    }
+    @media (max-width: 720px) {
+      .install-hint { grid-template-columns: 1fr; }
+    }
+
+    /* Install — collapsible "what the installer actually does" */
+    .install-advanced {
+      margin-top: 32px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      padding: 0;
+      transition: border-color var(--t);
+    }
+    .install-advanced[open] {
+      border-color: var(--border-2);
+    }
+    .install-advanced > summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 16px 20px;
+      font-family: var(--mono);
+      font-size: 13.5px;
+      color: var(--fg-2);
+      transition: color var(--t);
+      user-select: none;
+    }
+    .install-advanced > summary::-webkit-details-marker { display: none; }
+    .install-advanced > summary::before {
+      content: '▸ ';
+      color: var(--fg-3);
+      transition: transform var(--t);
+      display: inline-block;
+      margin-right: 6px;
+    }
+    .install-advanced[open] > summary::before {
+      content: '▾ ';
+      color: var(--green);
+    }
+    .install-advanced > summary:hover { color: var(--fg); }
+    .install-advanced-list {
+      margin: 0;
+      padding: 0 24px 16px 44px;
+      color: var(--fg-2);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+    .install-advanced-list li {
+      margin: 0 0 10px;
+    }
+    .install-advanced-list li strong {
+      color: var(--fg);
+      font-family: var(--mono);
+      font-weight: 600;
+    }
+    .install-advanced-list code,
+    .install-advanced-note code {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--fg);
+    }
+    .install-advanced-note {
+      margin: 0;
+      padding: 12px 24px 18px 24px;
+      border-top: 1px dashed var(--border);
+      color: var(--fg-3);
+      font-size: 13.5px;
+    }
 
     /* =========================================================
        How it works (HTML diagram)
@@ -1163,15 +1348,22 @@
             </span>
           </span>
 
-          <h1 data-en-html="Run open LLMs on <span class=&quot;accent&quot;>your own GPU</span>."
-              data-pt-html="Rode LLMs abertos <span class=&quot;accent&quot;>na sua GPU</span>.">
-            Run open LLMs on <span class="accent">your own GPU</span>.
+          <h1 data-en-html="Run open LLMs on <span class=&quot;accent&quot;>your own hardware</span>."
+              data-pt-html="Rode LLMs abertos <span class=&quot;accent&quot;>no seu hardware</span>.">
+            Run open LLMs on <span class="accent">your own hardware</span>.
           </h1>
 
           <p class="lede"
-             data-en="An open project that wraps llama.cpp and Open WebUI behind a small CLI. You pick a model from a catalog, vello picks a quantization that fits your VRAM, and Docker brings the stack up. That's the whole idea."
-             data-pt="Um projeto aberto que junta llama.cpp e Open WebUI atrás de uma CLI enxuta. Você escolhe um modelo do catálogo, o vello escolhe a quantização que cabe na sua VRAM, e o Docker sobe a stack. É isso.">
+             data-en="An open project that wraps llama.cpp and Open WebUI behind a small CLI. You pick a model from a catalog, vello picks a quantization that fits your hardware, and Docker brings the stack up. Works on NVIDIA GPU or pure CPU — the installer auto-detects and configures everything."
+             data-pt="Um projeto aberto que junta llama.cpp e Open WebUI atrás de uma CLI enxuta. Você escolhe um modelo do catálogo, o vello escolhe a quantização que cabe no seu hardware, e o Docker sobe a stack. Funciona em GPU NVIDIA ou em CPU puro — o installer detecta e configura tudo sozinho.">
           </p>
+
+          <div class="hero-pills" aria-hidden="false">
+            <span class="hero-pill hero-pill-gpu" data-en="NVIDIA GPU" data-pt="GPU NVIDIA">NVIDIA GPU</span>
+            <span class="hero-pill-or" data-en="or" data-pt="ou">or</span>
+            <span class="hero-pill hero-pill-cpu" data-en="pure CPU" data-pt="CPU puro">pure CPU</span>
+            <span class="hero-pill-tail" data-en="auto-detected" data-pt="auto-detectado">auto-detected</span>
+          </div>
 
           <div class="cta">
             <a class="btn btn-primary" href="#install">
@@ -1306,13 +1498,24 @@
     <div class="container">
       <div class="reveal">
         <div class="section-eyebrow" data-en="Installation" data-pt="Instalação">Installation</div>
-        <h2 data-en="From clone to chat in five steps."
-            data-pt="Do clone ao chat em cinco passos.">
+        <h2 data-en="From clone to chat in five short steps."
+            data-pt="Do clone ao chat em cinco passos curtos.">
         </h2>
         <p class="section-lede"
-           data-en="The installer runs once and bootstraps the host: prerequisites, NVIDIA Container Toolkit, llama-server image, Rust toolchain, and the vello binary on your PATH. Daily use after that is a single binary."
-           data-pt="O installer roda uma vez e prepara o host: pré-requisitos, NVIDIA Container Toolkit, imagem do llama-server, toolchain Rust e o binário vello no seu PATH. Depois disso, o dia-a-dia é só o binário.">
+           data-en-html="The installer auto-detects whether you have a NVIDIA GPU or only CPU and configures everything for that path — and it <strong>pauses before each sudo / apt step</strong>, so nothing happens behind your back. Add <code>--yes</code> only when you want unattended runs (CI, fresh servers)."
+           data-pt-html="O installer detecta automaticamente se você tem GPU NVIDIA ou só CPU e configura tudo pro caminho certo — e <strong>pausa antes de cada passo com sudo / apt</strong>, então nada acontece pelas suas costas. Use <code>--yes</code> só quando quiser execução não-interativa (CI, servidores novos).">
         </p>
+      </div>
+
+      <div class="install-hint reveal">
+        <div class="install-hint-pill install-hint-pill-gpu">
+          <span class="install-hint-pill-tag" data-en="GPU host" data-pt="Host com GPU">GPU host</span>
+          <span data-en-html="Installer builds the CUDA image (~5 GB), expects driver 550+. <code>30–60 tok/s</code> on 7-8B models." data-pt-html="O installer compila a imagem CUDA (~5 GB), pede driver 550+. <code>30–60 tok/s</code> em modelos 7-8B."></span>
+        </div>
+        <div class="install-hint-pill install-hint-pill-cpu">
+          <span class="install-hint-pill-tag" data-en="CPU only" data-pt="Só CPU">CPU only</span>
+          <span data-en-html="Run <code>vello doctor --cpu</code> after install. Builds a slim ~500 MB image. Catalog filters to CPU-friendly models. <code>3–30 tok/s</code> depending on size; MoE shines." data-pt-html="Rode <code>vello doctor --cpu</code> depois do install. Imagem leve de ~500 MB. Catálogo filtra modelos que rodam bem em CPU. <code>3–30 tok/s</code> conforme tamanho; MoE brilha."></span>
+        </div>
       </div>
 
       <div class="timeline reveal">
@@ -1322,7 +1525,7 @@
           <div class="step-body">
             <div class="step-title" data-en="Clone the repo" data-pt="Clone o repositório"></div>
             <p class="step-desc"
-               data-en="Grab the source. The installer lives in here."
+               data-en="Grab the source. The installer lives inside."
                data-pt="Pegue o código. O installer mora aqui dentro."></p>
             <div class="step-cmd"><span class="pmt">$</span> git clone <span class="str">https://github.com/Colgate13/vello-llama.git</span>
 <span class="pmt">$</span> <span class="kw">cd</span> vello-llama</div>
@@ -1332,10 +1535,10 @@
         <div class="step">
           <div class="step-num">02</div>
           <div class="step-body">
-            <div class="step-title" data-en="Run the installer (once)" data-pt="Rode o installer (uma vez)"></div>
+            <div class="step-title" data-en="Run the installer" data-pt="Rode o installer"></div>
             <p class="step-desc"
-               data-en="Verifies prerequisites, installs the NVIDIA Container Toolkit, builds the llama-server image, sets up the Rust toolchain, and exposes vello on your PATH. Takes ~12–20 min."
-               data-pt="Verifica pré-requisitos, instala o NVIDIA Container Toolkit, compila a imagem do llama-server, prepara o Rust e expõe o vello no seu PATH. Leva ~12–20 min."></p>
+               data-en-html="Detects hardware via <code>vello doctor</code> and pauses before each sudo step (apt installs, nvidia-container-toolkit, etc.) so you approve each one. Installs the Rust toolchain in <code>$HOME</code> via rustup if missing, builds the Docker image for your runtime. ~12–20 min on first run; the image build dominates."
+               data-pt-html="Detecta o hardware via <code>vello doctor</code> e pausa antes de cada passo com sudo (apt installs, nvidia-container-toolkit, etc.) pra você aprovar cada um. Instala o Rust no <code>$HOME</code> via rustup se faltar, compila a imagem Docker do seu runtime. ~12–20 min na primeira vez; o build da imagem domina."></p>
             <div class="step-cmd"><span class="pmt">$</span> ./vello-installer install</div>
           </div>
         </div>
@@ -1343,39 +1546,75 @@
         <div class="step">
           <div class="step-num">03</div>
           <div class="step-body">
-            <div class="step-title" data-en="Pick a model for your hardware" data-pt="Escolha um modelo pra sua máquina"></div>
+            <div class="step-title" data-en="See what fits your hardware" data-pt="Veja o que cabe na sua máquina"></div>
             <p class="step-desc"
-               data-en-html="<code>recommend</code> ranks the catalog for your GPU and prints suggestions for a use case. <code>install</code> picks a quantization that fits, downloads the GGUF and writes the <code>.env</code>."
-               data-pt-html="<code>recommend</code> ranqueia o catálogo pra sua GPU e imprime sugestões pra um caso de uso. <code>install</code> escolhe uma quantização que cabe, baixa o GGUF e escreve o <code>.env</code>."></p>
-            <div class="step-cmd"><span class="pmt">$</span> vello recommend chat
-<span class="pmt">$</span> vello install qwen3-8b</div>
+               data-en-html="<code>recommend</code> ranks the catalog against your hardware and a use case. Tiers are recomputed live from <code>profile.toml</code>; tier S in CPU mode means small + fast, tier S in GPU mode means fits in VRAM."
+               data-pt-html="<code>recommend</code> ranqueia o catálogo contra o seu hardware e um caso de uso. Tiers são recalculados ao vivo a partir do <code>profile.toml</code>; tier S em CPU significa pequeno e rápido, tier S em GPU significa cabe na VRAM."></p>
+            <div class="step-cmd"><span class="pmt">$</span> vello recommend chat <span class="cmt"># or: code, vision, raciocínio…</span></div>
           </div>
         </div>
 
         <div class="step">
           <div class="step-num">04</div>
           <div class="step-body">
-            <div class="step-title" data-en="Boot the stack" data-pt="Suba o stack"></div>
+            <div class="step-title" data-en="Install a model" data-pt="Instale um modelo"></div>
             <p class="step-desc"
-               data-en="Starts llama-server (CUDA) and Open WebUI. First boot takes 1–3 min while the model is mmapped onto the GPU."
-               data-pt="Sobe o llama-server (CUDA) e o Open WebUI. O primeiro boot leva 1–3 min enquanto o modelo é mmapped pra GPU."></p>
-            <div class="step-cmd"><span class="pmt">$</span> vello up
-<span class="pmt">$</span> vello health   <span class="cmt"># is the API up?</span></div>
+               data-en-html="<code>install</code> picks a quant that fits, then downloads the GGUF straight from a <strong>public HuggingFace mirror</strong> (the catalog points each model at a <code>bartowski</code> or <code>unsloth</code> repo). No HuggingFace token, no HF API — just a <code>curl</code> stream into <code>./models/</code> with atomic <code>.partial</code> rename."
+               data-pt-html="<code>install</code> escolhe um quant que cabe e baixa o GGUF direto de um <strong>mirror público no HuggingFace</strong> (o catálogo aponta cada modelo pra um repo <code>bartowski</code> ou <code>unsloth</code>). Sem token, sem API do HF — só um stream com <code>curl</code> pra <code>./models/</code> com rename atômico de <code>.partial</code>."></p>
+            <div class="step-cmd"><span class="pmt">$</span> vello install <span class="str">&lt;model&gt;</span>   <span class="cmt"># e.g. phi-4-mini · qwen3-8b · qwen3-30b-a3b</span>
+<span class="cmt"># resolves catalog repo → URL:</span>
+<span class="cmt"># https://huggingface.co/&lt;repo&gt;/resolve/main/&lt;file&gt;.gguf</span></div>
+            <p class="step-aside"
+               data-en-html="Want a model that's not in the catalog? Drop a TOML into <code>catalogs/user/</code> with a <code>repo</code> + <code>files</code> map pointing at any HF GGUF mirror — see the <a href=&quot;#catalog&quot;>Catalogs</a> section below."
+               data-pt-html="Quer um modelo que não está no catálogo? Coloque um TOML em <code>catalogs/user/</code> com <code>repo</code> + <code>files</code> apontando pra qualquer mirror de GGUF no HF — veja a seção <a href=&quot;#catalog&quot;>Catálogos</a> abaixo."></p>
           </div>
         </div>
 
         <div class="step">
           <div class="step-num">05</div>
           <div class="step-body">
-            <div class="step-title" data-en="Open the chat" data-pt="Abra o chat"></div>
+            <div class="step-title" data-en="Start the stack and open the chat" data-pt="Suba o stack e abra o chat"></div>
             <p class="step-desc"
-               data-en="Open WebUI is wired to llama-server inside the Docker network. No login required by default."
-               data-pt="O Open WebUI já está conectado ao llama-server dentro da rede Docker. Não pede login por padrão."></p>
-            <div class="step-cmd"><span class="pmt">$</span> xdg-open <span class="str">http://localhost:3000</span></div>
+               data-en-html="<code>up</code> brings <code>llama-server</code> and <code>open-webui</code> online. First boot mmaps the model (1–3 min GPU, 2–5 min CPU); Open WebUI is pre-wired to the local model, no login required."
+               data-pt-html="<code>up</code> sobe o <code>llama-server</code> e o <code>open-webui</code>. O primeiro boot faz mmap do modelo (1–3 min na GPU, 2–5 min na CPU); o Open WebUI já está conectado ao modelo local, sem login."></p>
+            <div class="step-cmd"><span class="pmt">$</span> vello up
+<span class="pmt">$</span> xdg-open <span class="str">http://localhost:3000</span></div>
           </div>
         </div>
 
       </div>
+
+      <details class="install-advanced reveal">
+        <summary>
+          <span data-en="Show what the installer actually does (6 steps under the hood)"
+                data-pt="Ver o que o installer faz de verdade (6 passos por dentro)"></span>
+        </summary>
+
+        <ol class="install-advanced-list">
+          <li><strong data-en="Bootstrap preflight" data-pt="Bootstrap preflight"></strong> —
+            <span data-en-html="Verifies <code>curl</code>, <code>cargo</code> (or offers rustup), disk space ≥17 GB. Aborts cleanly if anything's missing, listing all problems at once."
+                  data-pt-html="Verifica <code>curl</code>, <code>cargo</code> (ou oferece rustup), disco ≥17 GB. Aborta limpo se faltar algo, listando todos os problemas de uma vez."></span></li>
+          <li><strong data-en="Rust toolchain" data-pt="Toolchain Rust"></strong> —
+            <span data-en-html="If <code>cargo</code> isn't on PATH, offers <code>rustup</code> install entirely in <code>$HOME</code> (no sudo)."
+                  data-pt-html="Se <code>cargo</code> não estiver no PATH, oferece <code>rustup</code> que instala tudo no <code>$HOME</code> (sem sudo)."></span></li>
+          <li><strong data-en="Build vello" data-pt="Compila o vello"></strong> —
+            <code>cargo build --release</code><span data-en-html=" then a symlink at <code>./vello</code>." data-pt-html=" e um symlink em <code>./vello</code>."></span></li>
+          <li><strong>vello doctor --installer-mode --fix</strong> —
+            <span data-en-html="Diagnoses everything else (Docker, NVIDIA stack, ports, paths, distro, RAM, GPU/CPU mode), auto-installs fixable items with explicit confirmation, persists the runtime mode in <code>profile.toml</code>. Exits 0/1/2 for the installer to gate on."
+                  data-pt-html="Diagnostica tudo o resto (Docker, stack NVIDIA, portas, paths, distro, RAM, modo GPU/CPU), auto-instala o que dá com confirmação explícita, persiste o modo runtime no <code>profile.toml</code>. Sai com 0/1/2 pro installer decidir."></span></li>
+          <li><strong data-en="Build llama-server image" data-pt="Compila a imagem do llama-server"></strong> —
+            <span data-en-html="Mode-aware. GPU mode → <code>vello/llama-server-cuda:12.4</code> (~5 GB). CPU mode → <code>vello/llama-server-cpu:latest</code> (~500 MB, portable AVX2)."
+                  data-pt-html="Sensível ao modo. GPU → <code>vello/llama-server-cuda:12.4</code> (~5 GB). CPU → <code>vello/llama-server-cpu:latest</code> (~500 MB, portátil AVX2)."></span></li>
+          <li><strong data-en="Expose on PATH" data-pt="Coloca no PATH"></strong> —
+            <span data-en-html="Symlinks <code>~/.local/bin/vello</code> → <code>./vello</code>. After this, you can run <code>vello</code> from anywhere."
+                  data-pt-html="Symlink <code>~/.local/bin/vello</code> → <code>./vello</code>. A partir daí, <code>vello</code> roda em qualquer pasta."></span></li>
+        </ol>
+
+        <p class="install-advanced-note"
+           data-en-html="Re-run <code>vello doctor</code> any time to re-audit the host. <code>vello doctor --cpu</code> / <code>--gpu</code> switches the runtime mode and rewrites <code>.env</code> on the next <code>vello apply</code>."
+           data-pt-html="Rode <code>vello doctor</code> a qualquer hora pra re-auditar o host. <code>vello doctor --cpu</code> / <code>--gpu</code> troca o modo runtime e reescreve o <code>.env</code> no próximo <code>vello apply</code>.">
+        </p>
+      </details>
     </div>
   </section>
 
@@ -2052,16 +2291,18 @@ cp clients/crush.json    ~/.config/crush/</pre>
     if (!term) return;
 
     const lines = [
+      { type: 'cmd',      text: './vello-installer install' },
+      { type: 'out-info', text: '  • detected NVIDIA RTX 4060 · driver 550' },
+      { type: 'out-info', text: '  • install nvidia-container-toolkit? [y/N]  ›  y' },
+      { type: 'out-ok',   text: '  ✓ built vello/llama-server-cuda:12.4' },
       { type: 'cmd',      text: 'vello recommend chat' },
-      { type: 'out-info', text: '  ▸ qwen3-8b           7.6B   S    tools' },
-      { type: 'out-info', text: '  ▸ qwen3-30b-a3b      30B    B    moe, tools' },
-      { type: 'out-info', text: '  ▸ llama-3.1-8b       8.0B   S    tools' },
-      { type: 'cmd',      text: 'vello install qwen3-8b' },
-      { type: 'out-ok',   text: '  ✓ picked Q5_K_M for 8GB VRAM' },
-      { type: 'out-ok',   text: '  ✓ downloaded 5.4 GB from bartowski' },
-      { type: 'out-ok',   text: '  ✓ wrote .env  ·  restarted llama-server' },
-      { type: 'cmd',      text: 'vello health' },
-      { type: 'out-ok',   text: '  ✓ http://localhost:8080/v1  →  ready' },
+      { type: 'out-info', text: '  ▸ qwen3-8b       8.2B   S    chat,tools' },
+      { type: 'out-info', text: '  ▸ phi-4-mini     3.8B   S    chat,small' },
+      { type: 'cmd',      text: 'vello install phi-4-mini' },
+      { type: 'out-ok',   text: '  ✓ picked Q5_K_M for 8 GB VRAM (Tier S)' },
+      { type: 'out-ok',   text: '  ✓ downloaded 2.7 GB · wrote .env' },
+      { type: 'cmd',      text: 'vello up' },
+      { type: 'out-ok',   text: '  ✓ stack up · http://localhost:3000  →  ready' },
     ];
 
     const TYPE_MS = 26;
