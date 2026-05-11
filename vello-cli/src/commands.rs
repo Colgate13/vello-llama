@@ -8,80 +8,25 @@ use crate::fit::{self, Strategy};
 use crate::paths::Paths;
 use crate::recommend;
 use crate::resolver::{self, ResolveInput};
-use crate::schema::{Architecture, Profile, Tier};
+use crate::schema::{Architecture, Mode, Profile, Tier};
+use crate::style::Style;
 use crate::system;
 use anyhow::{anyhow, bail, Context, Result};
 use std::fs;
 use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 
-// ---------------------------------------------------------------------------
-// Color helpers
-// ---------------------------------------------------------------------------
-
-struct Style {
-    enabled: bool,
+fn mode_label(m: Mode) -> &'static str {
+    match m {
+        Mode::Gpu => "gpu",
+        Mode::Cpu => "cpu",
+    }
 }
 
-impl Style {
-    fn new() -> Self {
-        let enabled = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
-        Self { enabled }
-    }
-    fn dim(&self, s: &str) -> String {
-        if self.enabled {
-            format!("\x1b[2m{s}\x1b[0m")
-        } else {
-            s.to_string()
-        }
-    }
-    fn bold(&self, s: &str) -> String {
-        if self.enabled {
-            format!("\x1b[1m{s}\x1b[0m")
-        } else {
-            s.to_string()
-        }
-    }
-    fn green(&self, s: &str) -> String {
-        if self.enabled {
-            format!("\x1b[32m{s}\x1b[0m")
-        } else {
-            s.to_string()
-        }
-    }
-    fn yellow(&self, s: &str) -> String {
-        if self.enabled {
-            format!("\x1b[33m{s}\x1b[0m")
-        } else {
-            s.to_string()
-        }
-    }
-    fn red(&self, s: &str) -> String {
-        if self.enabled {
-            format!("\x1b[31m{s}\x1b[0m")
-        } else {
-            s.to_string()
-        }
-    }
-    fn cyan(&self, s: &str) -> String {
-        if self.enabled {
-            format!("\x1b[36m{s}\x1b[0m")
-        } else {
-            s.to_string()
-        }
-    }
-    fn tier(&self, t: Tier) -> String {
-        let label = t.label();
-        if !self.enabled {
-            return format!("[{label}]");
-        }
-        match t {
-            Tier::S => format!("\x1b[1;32m[{label}]\x1b[0m"),
-            Tier::A => format!("\x1b[32m[{label}]\x1b[0m"),
-            Tier::B => format!("\x1b[36m[{label}]\x1b[0m"),
-            Tier::C => format!("\x1b[33m[{label}]\x1b[0m"),
-            Tier::D => format!("\x1b[2;31m[{label}]\x1b[0m"),
-        }
+fn other_mode_flag(m: Mode) -> &'static str {
+    match m {
+        Mode::Gpu => "cpu",
+        Mode::Cpu => "gpu",
     }
 }
 
@@ -138,6 +83,10 @@ pub struct ListFilters {
     pub tier: Option<String>,
     pub modality: Option<String>,
     pub installed: bool,
+    /// Show models regardless of whether they declare the active mode in
+    /// `targets`. Without --all, models that don't support the current mode
+    /// (e.g. dense 14B in CPU mode) are hidden.
+    pub all: bool,
 }
 
 pub fn cmd_list(paths: &Paths, profile: &Profile, filters: &ListFilters) -> Result<()> {
@@ -156,14 +105,26 @@ pub fn cmd_list(paths: &Paths, profile: &Profile, filters: &ListFilters) -> Resu
 
     let active = active_filename(paths);
 
+    let mode_str = match profile.mode {
+        Mode::Gpu => st.green("gpu"),
+        Mode::Cpu => st.cyan("cpu"),
+    };
     println!(
-        "{} {}    {} {} GB VRAM, {} GB RAM",
+        "{} {}    {} {} GB VRAM, {} GB RAM    {} {}",
         st.bold("Profile:"),
         st.cyan(&profile.gpu_name),
         st.dim("→"),
         round1(profile.vram_gb),
         round1(profile.ram_gb),
+        st.bold("Mode:"),
+        mode_str,
     );
+    if profile.mode == Mode::Cpu && !filters.all {
+        println!(
+            "  {} (use --all to also show gpu-only entries)",
+            st.dim("CPU mode: showing models tagged for CPU"),
+        );
+    }
     println!();
 
     println!(
@@ -177,8 +138,14 @@ pub fn cmd_list(paths: &Paths, profile: &Profile, filters: &ListFilters) -> Resu
     );
 
     let tier_filter = filters.tier.as_deref().map(|s| s.to_uppercase());
+    let mode_target = profile.mode.as_target();
 
     for e in &loaded.entries {
+        // Hide models the curator didn't tag for the current runtime mode
+        // unless the user opted in via --all.
+        if !filters.all && !e.model.supports(mode_target) {
+            continue;
+        }
         if let Some(tag) = &filters.tag {
             if !e.model.tags.iter().any(|t| t == tag) {
                 continue;
@@ -239,10 +206,15 @@ pub fn cmd_list(paths: &Paths, profile: &Profile, filters: &ListFilters) -> Resu
     }
 
     println!();
-    println!(
-        "{}  S=fits VRAM  A=light overflow  B=MoE/offload  C=slow  D=won't fit",
-        st.dim("Tier legend:")
-    );
+    let legend = match profile.mode {
+        Mode::Gpu => {
+            "S=fits VRAM  A=light overflow  B=MoE/offload  C=slow  D=won't fit"
+        }
+        Mode::Cpu => {
+            "S=small dense or MoE, fast  A=small but tight  B=7-8B, usable  C=≤14B, slow  D=won't fit / gpu-only"
+        }
+    };
+    println!("{}  {}", st.dim("Tier legend:"), st.dim(legend));
     Ok(())
 }
 
@@ -445,6 +417,17 @@ pub fn cmd_install(
     let loaded = catalog::load_all(&paths.default_catalog, &paths.user_catalog_dir)?;
     let entry = catalog::find(&loaded.entries, id)?.clone();
     let m = &entry.model;
+    let mode_target = profile.mode.as_target();
+    if !m.supports(mode_target) {
+        bail!(
+            "'{}' isn't tagged for {} mode (targets = {:?}). Either pick another \
+             model from `vello list` or switch modes with `vello doctor --{}`.",
+            id,
+            mode_label(profile.mode),
+            m.targets,
+            other_mode_flag(profile.mode),
+        );
+    }
     let p = match quant {
         Some(q) => fit::pick_explicit(m, profile, q).ok_or_else(|| {
             anyhow!(
@@ -603,7 +586,7 @@ fn apply_model(
     }
     if restart && docker::is_running(paths) {
         println!("  {}", st.dim("restarting stack..."));
-        docker::restart(paths)?;
+        docker::restart(paths, profile.mode)?;
     } else if restart {
         println!(
             "  {}",
@@ -614,7 +597,7 @@ fn apply_model(
 }
 
 fn apply_unknown(paths: &Paths, profile: &Profile, file: &str, restart: bool) -> Result<()> {
-    use crate::schema::{Architecture, Model};
+    use crate::schema::{Architecture, Model, Target};
     use std::collections::BTreeMap;
     let mut files = BTreeMap::new();
     files.insert("?".to_string(), file.to_string());
@@ -627,6 +610,9 @@ fn apply_unknown(paths: &Paths, profile: &Profile, file: &str, restart: bool) ->
         params_active_b: None,
         architecture: Architecture::Dense,
         modalities: vec!["text".into()],
+        // Unknown user-dropped GGUF: assume permissive — works wherever the
+        // user is currently set up. The active mode is included explicitly.
+        targets: vec![Target::Gpu, Target::Cpu],
         tags: Vec::new(),
         experimental: false,
         description: String::new(),

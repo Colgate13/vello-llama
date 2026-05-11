@@ -8,12 +8,14 @@ mod catalog;
 mod commands;
 mod diagnostics;
 mod docker;
+mod doctor;
 mod fit;
 mod paths;
 mod profile;
 mod recommend;
 mod resolver;
 mod schema;
+mod style;
 mod system;
 
 use anyhow::Result;
@@ -25,7 +27,7 @@ COMMANDS BY CATEGORY:
   Models      install, switch, remove, active
   Config      apply, catalog, profile, update
   Stack       up, down, restart, status (ps), logs, build, nuke
-  Diagnostics health, gpu, bench, test
+  Diagnostics doctor, health, gpu, bench, test
 
 ALIASES:
   ls = list,  rm = remove,  ps = status
@@ -84,6 +86,10 @@ enum Cmd {
         /// Show only models present on disk.
         #[arg(short = 'i', long)]
         installed: bool,
+        /// Show models regardless of whether they declare the active runtime
+        /// (gpu/cpu) in their targets. Default hides incompatible entries.
+        #[arg(long)]
+        all: bool,
     },
 
     /// Show detailed info for a single model (auto-picked quant, fit, status).
@@ -227,16 +233,60 @@ enum Cmd {
         /// Service names (default: all).
         services: Vec<String>,
     },
-    /// Rebuild the llama-server Docker image.
+    /// Rebuild the llama-server Docker image for the current runtime mode.
     Build {
-        /// Pass --no-cache.
+        /// Pass --no-cache to docker compose build.
         #[arg(long)]
         no_cache: bool,
+        /// Build both the CUDA and CPU images (default: only the one matching
+        /// the current profile.toml mode). Useful when distributing to mixed
+        /// hosts. The CUDA build still needs nvidia-container-toolkit.
+        #[arg(long)]
+        all: bool,
     },
     /// Stop and remove containers + image (host data — models, openwebui-data, configs — kept).
     Nuke,
 
     // ---------- Diagnostics ----------
+    /// Pre-flight: check every host requirement and detect CPU/GPU mode.
+    #[command(
+        long_about = "Audits the host for everything vello needs: OS, disk, docker, \
+                      NVIDIA stack, ports, paths. Each check runs (no fail-fast) so \
+                      the full picture surfaces at once. Detects CPU vs GPU mode \
+                      and can persist the choice to profile.toml via --cpu / --gpu.\n\
+                      \n\
+                      Exit codes: 0 ok (or only warns), 1 has auto-fixable fails, \
+                      2 has unfixable fails (missing driver, docker, etc.).",
+        after_help = "EXAMPLES:\n  \
+                        vello doctor                  # human table for the current host\n  \
+                        vello doctor --json           # stable JSON for CI / scripting\n  \
+                        vello doctor --cpu            # force CPU mode (persists in profile.toml)\n  \
+                        vello doctor --gpu --deep     # also exercise GPU passthrough through Docker\n  \
+                        vello doctor --fix --yes      # auto-install fixable items, no prompts"
+    )]
+    Doctor {
+        /// Emit a stable JSON object instead of the human table.
+        #[arg(long)]
+        json: bool,
+        /// Attempt to auto-install fixable items (curl/jq/git/watch + nvidia-container-toolkit).
+        #[arg(long)]
+        fix: bool,
+        /// Auto-accept prompts (no GPU → CPU mode, --fix confirmations, etc.).
+        #[arg(short = 'y', long)]
+        yes: bool,
+        /// Force CPU mode and persist it to profile.toml.
+        #[arg(long, conflicts_with = "gpu")]
+        cpu: bool,
+        /// Force GPU mode (fails if no NVIDIA GPU is detected).
+        #[arg(long, conflicts_with = "cpu")]
+        gpu: bool,
+        /// Include slow checks (GPU passthrough through Docker, ~30 s).
+        #[arg(long)]
+        deep: bool,
+        /// Internal: called by vello-installer after compiling the binary.
+        #[arg(long, hide = true)]
+        installer_mode: bool,
+    },
     /// API health probe.
     Health,
     /// Live nvidia-smi (Ctrl-C to exit).
@@ -289,6 +339,7 @@ fn main() -> Result<()> {
             tier,
             modality,
             installed,
+            all,
         } => commands::cmd_list(
             &paths,
             &profile,
@@ -297,6 +348,7 @@ fn main() -> Result<()> {
                 tier,
                 modality,
                 installed,
+                all,
             },
         ),
         Cmd::Info { id, quant } => commands::cmd_info(&paths, &profile, &id, quant.as_deref()),
@@ -324,14 +376,35 @@ fn main() -> Result<()> {
         },
         Cmd::Update { force } => commands::cmd_update(&paths, force),
 
-        Cmd::Up => docker::up(&paths),
+        Cmd::Up => docker::up(&paths, profile.mode),
         Cmd::Down => docker::down(&paths),
-        Cmd::Restart => docker::restart(&paths),
+        Cmd::Restart => docker::restart(&paths, profile.mode),
         Cmd::Status => docker::status(&paths),
         Cmd::Logs { follow, services } => docker::logs(&paths, follow, &services),
-        Cmd::Build { no_cache } => docker::build(&paths, no_cache),
+        Cmd::Build { no_cache, all } => docker::build(&paths, profile.mode, no_cache, all),
         Cmd::Nuke => commands::cmd_nuke(&paths),
 
+        Cmd::Doctor {
+            json,
+            fix,
+            yes,
+            cpu,
+            gpu,
+            deep,
+            installer_mode,
+        } => {
+            let opts = doctor::DoctorOpts {
+                json,
+                fix,
+                yes,
+                force_cpu: cpu,
+                force_gpu: gpu,
+                deep,
+                installer_mode,
+            };
+            let code = doctor::run(&paths, &profile, opts)?;
+            std::process::exit(code);
+        }
         Cmd::Health => {
             let sys = system::load_or_default(&paths.system)?;
             diagnostics::health(&sys)

@@ -122,16 +122,22 @@ vello() { ( cd "$REPO_ROOT" && ./vello "$@" ); }
 preflight() {
   phase "Pre-flight"
 
-  for c in git docker curl jq nvidia-smi; do
-    command -v "$c" >/dev/null || fatal "$c not found in PATH"
-  done
-  ok "tools present"
-
-  docker info >/dev/null 2>&1 || fatal "docker daemon not reachable"
-  ok "docker daemon reachable"
-
+  # The doctor binary is what we'll dogfood for all host checks. Verify it
+  # exists and then let it diagnose docker, GPU, ports, etc. in one shot.
   [[ -x "${REPO_ROOT}/vello" ]] || fatal "${REPO_ROOT}/vello not built — run \`make build-vello\`"
   ok "./vello binary present ($(${REPO_ROOT}/vello --version))"
+
+  command -v jq >/dev/null || fatal "jq not in PATH (needed to parse vello doctor --json)"
+
+  info "running ./vello doctor --json (dogfood the host check)…"
+  local doctor_json doctor_rc=0
+  doctor_json=$( ( cd "$REPO_ROOT" && ./vello doctor --json ) ) || doctor_rc=$?
+  if (( doctor_rc != 0 )); then
+    local failed
+    failed=$(printf '%s' "$doctor_json" | jq -r '[.checks[] | select(.status=="fail")] | .[].id' 2>/dev/null | paste -sd',' -)
+    fatal "vello doctor returned $doctor_rc; failing checks: ${failed:-<unknown>}"
+  fi
+  ok "vello doctor reports host healthy ($(printf '%s' "$doctor_json" | jq -r '.summary | "\(.ok) ok, \(.warn) warn, \(.fail) fail, \(.skip) skip"'))"
 
   docker image inspect "$IMAGE" >/dev/null 2>&1 \
     || fatal "image $IMAGE not present — run \`./vello build\` first"
@@ -299,6 +305,45 @@ phase_meta() {
   run_step "vello list --help"        1 -- vello list --help
 }
 
+phase_doctor() {
+  phase "Phase 0.5 — doctor"
+
+  run_step "vello doctor (human, exit 0 or 1)"           1 -- \
+    bash -c "cd '$REPO_ROOT' && rc=0; ./vello doctor >/dev/null 2>&1 || rc=\$?; [[ \$rc -le 1 ]]"
+  run_step "vello doctor --json (schema=1)"              1 -- \
+    bash -c "cd '$REPO_ROOT' && ./vello doctor --json | jq -e '.schema == 1' >/dev/null"
+  run_step "vello doctor --help"                         1 -- vello doctor --help
+
+  run_step "vello doctor --cpu (persists mode=cpu)"      1 -- vello doctor --cpu
+  run_step "profile.toml now has mode = \"cpu\""        1 -- \
+    bash -c "grep -q '^mode = \"cpu\"' '$REPO_ROOT/profile.toml'"
+
+  # CPU runtime is real now: apply succeeds and produces a CPU-flavored .env.
+  run_step "vello apply succeeds in cpu mode"            1 -- \
+    bash -c "cd '$REPO_ROOT' && ./vello apply --no-restart"
+  run_step "cpu .env: COMPOSE_PROFILES=cpu"              1 -- \
+    bash -c "grep -q '^COMPOSE_PROFILES=cpu' '$REPO_ROOT/.env'"
+  run_step "cpu .env: LLAMA_NGL=0"                       1 -- \
+    bash -c "grep -q '^LLAMA_NGL=0' '$REPO_ROOT/.env'"
+  run_step "cpu .env: LLAMA_FLASH_ATTN=off"              1 -- \
+    bash -c "grep -q '^LLAMA_FLASH_ATTN=off' '$REPO_ROOT/.env'"
+
+  # Catalog filter behaviors: count must drop with the default filter and
+  # bounce back with --all.
+  run_step "vello list (cpu mode) filters out gpu-only"  1 -- \
+    bash -c "cd '$REPO_ROOT' && cpu=\$(./vello list 2>/dev/null | grep -cE '^\\[[A-Z]\\]'); all=\$(./vello list --all 2>/dev/null | grep -cE '^\\[[A-Z]\\]'); [[ \$cpu -lt \$all && \$all -ge 20 ]]"
+  run_step "install gpu-only model in cpu mode bails"    0 -- \
+    bash -c "cd '$REPO_ROOT' && ./vello install qwq-32b -n"
+
+  run_step "vello doctor --gpu (restores mode=gpu)"      1 -- vello doctor --gpu
+  run_step "profile.toml now has mode = \"gpu\""        1 -- \
+    bash -c "grep -q '^mode = \"gpu\"' '$REPO_ROOT/profile.toml'"
+  run_step "gpu .env: COMPOSE_PROFILES=cuda"             1 -- \
+    bash -c "cd '$REPO_ROOT' && ./vello apply --no-restart >/dev/null 2>&1 && grep -q '^COMPOSE_PROFILES=cuda' '$REPO_ROOT/.env'"
+  run_step "gpu .env: LLAMA_NGL=99 (default restored)"   1 -- \
+    bash -c "grep -q '^LLAMA_NGL=99' '$REPO_ROOT/.env'"
+}
+
 phase_profile() {
   phase "Phase 1 — profile"
   run_step "vello profile show"       1 -- vello profile show
@@ -453,6 +498,7 @@ main() {
   backup_state
 
   phase_meta
+  phase_doctor
   phase_profile
   phase_catalog
   phase_discovery

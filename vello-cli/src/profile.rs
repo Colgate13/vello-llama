@@ -1,6 +1,6 @@
 //! Hardware profile detection and persistence.
 
-use crate::schema::Profile;
+use crate::schema::{Mode, Profile};
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
@@ -40,8 +40,17 @@ pub fn detect() -> Result<Profile> {
     Ok(p)
 }
 
+/// Persist the chosen acceleration mode, creating profile.toml from auto-detect
+/// if it doesn't exist yet.
+pub fn set_mode(path: &Path, mode: Mode) -> Result<Profile> {
+    let mut profile = load_or_detect(path)?;
+    profile.mode = mode;
+    save(path, &profile)?;
+    Ok(profile)
+}
+
 /// Returns (vram_gb, name, cuda_arch).
-fn detect_gpu() -> Option<(f32, String, Option<u32>)> {
+pub(crate) fn detect_gpu() -> Option<(f32, String, Option<u32>)> {
     let out = Command::new("nvidia-smi")
         .args([
             "--query-gpu=memory.total,name,compute_cap",
@@ -65,7 +74,7 @@ fn detect_gpu() -> Option<(f32, String, Option<u32>)> {
     Some((mib / 1024.0, name, arch))
 }
 
-fn detect_ram() -> Option<f32> {
+pub(crate) fn detect_ram() -> Option<f32> {
     let raw = fs::read_to_string("/proc/meminfo").ok()?;
     for line in raw.lines() {
         if let Some(rest) = line.strip_prefix("MemTotal:") {

@@ -1,0 +1,50 @@
+# Build a llama.cpp server image for CPU-only inference.
+#
+# Mirror of Dockerfile.llama-cuda but:
+#  - ubuntu:22.04 base (no NVIDIA layers)
+#  - no CUDA toolkit / stubs
+#  - -DGGML_NATIVE=OFF so the image stays portable across CPU vendors
+#    (an image built on Zen4 with NATIVE=ON would crash on older CPUs)
+#  - explicit AVX2/F16C/FMA flags — safe baseline for x86_64 CPUs from
+#    ~2013 onward (Haswell). AVX-512 is opt-in via cmake later if desired.
+#
+# Build with: ./vello build  (or: docker compose --profile cpu build llama-server-cpu)
+
+ARG LLAMA_CPP_REF=master
+
+# ----- stage 1: build -----
+FROM ubuntu:22.04 AS build
+ARG LLAMA_CPP_REF
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git build-essential cmake ccache libcurl4-openssl-dev ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+RUN git clone --depth=1 --branch ${LLAMA_CPP_REF} https://github.com/ggml-org/llama.cpp.git
+
+WORKDIR /opt/llama.cpp
+RUN cmake -B build \
+      -DGGML_NATIVE=OFF \
+      -DGGML_AVX2=ON \
+      -DGGML_F16C=ON \
+      -DGGML_FMA=ON \
+      -DGGML_OPENMP=ON \
+      -DLLAMA_CURL=ON \
+      -DCMAKE_BUILD_TYPE=Release \
+ && cmake --build build --config Release -j"$(nproc)" --target llama-server
+
+# ----- stage 2: runtime -----
+FROM ubuntu:22.04 AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      curl libgomp1 libcurl4 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+# Same shape as the CUDA image so the entrypoint and LD_LIBRARY_PATH match.
+COPY --from=build /opt/llama.cpp/build/bin/ /app/
+
+ENV LD_LIBRARY_PATH=/app
+EXPOSE 8080
+ENTRYPOINT ["/app/llama-server"]

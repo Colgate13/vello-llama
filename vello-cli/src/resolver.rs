@@ -3,9 +3,10 @@
 //! Output is a deterministic .env file consumed by docker-compose. Precedence
 //! (high → low): catalog [model.runtime] > system.toml > built-in defaults.
 
+use crate::docker;
 use crate::paths::Paths;
-use crate::schema::{Model, Profile};
-use crate::system::SystemConfig;
+use crate::schema::{Mode, Model, Profile};
+use crate::system::{self, SystemConfig};
 use anyhow::{Context, Result};
 use std::fs;
 
@@ -31,6 +32,11 @@ pub struct Resolved {
 
     pub mmproj: String,     // empty if no vision
     pub extra_args: String, // space-joined, empty if none
+
+    /// Acceleration mode for this run — propagated into the .env as
+    /// `LLAMA_RUNTIME` and `COMPOSE_PROFILES` so `docker compose up` (without
+    /// an explicit `--profile`) still activates the right service.
+    pub mode: Mode,
 }
 
 pub struct ResolveInput<'a> {
@@ -41,9 +47,42 @@ pub struct ResolveInput<'a> {
 }
 
 pub fn resolve(input: &ResolveInput<'_>) -> Resolved {
+    let mut r = resolve_gpu_baseline(input);
+    if input.profile.mode == Mode::Cpu {
+        apply_cpu_overrides(&mut r, input.system);
+    }
+    r
+}
+
+/// CPU mode overrides applied on top of the GPU-flavored baseline.
+///
+/// llama.cpp's CPU build doesn't support `--flash-attn` and ignores
+/// `--n-gpu-layers`. We zero NGL defensively (in case the user is on a host
+/// with both CPU and CUDA builds present), flip flash-attn off, and shrink
+/// the batch/context defaults to values appropriate for CPU inference where
+/// KV cache lives in RAM rather than VRAM.
+///
+/// Threads default to physical cores only when the user kept the system.toml
+/// default (6) — any explicit override is respected.
+fn apply_cpu_overrides(r: &mut Resolved, sys: &SystemConfig) {
+    r.ngl = 0;
+    r.flash_attn = false;
+    r.ctx = r.ctx.min(8192);
+    r.batch = r.batch.min(512);
+    r.ubatch = r.ubatch.min(128);
+    // Only override threads if the user hasn't customised it. system.toml's
+    // documented default is 6; anything else means an intentional choice.
+    if sys.runtime.default_threads == 6 {
+        if let Some(physical) = system::physical_cores() {
+            r.threads = physical;
+        }
+    }
+}
+
+fn resolve_gpu_baseline(input: &ResolveInput<'_>) -> Resolved {
     let m = input.model;
     let sys = input.system;
-    let _profile = input.profile;
+    let profile = input.profile;
     let rt = &m.runtime;
 
     let ctx = rt.ctx_default.unwrap_or(sys.runtime.default_ctx);
@@ -89,6 +128,8 @@ pub fn resolve(input: &ResolveInput<'_>) -> Resolved {
 
         mmproj: rt.mmproj.clone().unwrap_or_default(),
         extra_args: extras.join(" "),
+
+        mode: profile.mode,
     }
 }
 
@@ -120,6 +161,8 @@ const MANAGED_KEYS: &[&str] = &[
     "LLAMA_KV_CACHE_V",
     "LLAMA_FLASH_ATTN",
     "LLAMA_EXTRA_ARGS",
+    "LLAMA_RUNTIME",
+    "COMPOSE_PROFILES",
     // Removed in this version — drop on regen so docker-compose doesn't see it.
     "LLAMA_MMPROJ",
     // Legacy keys we no longer write but should drop on regeneration so the
@@ -176,6 +219,15 @@ fn render(r: &Resolved, preserved: &str) -> String {
     out.push_str("# Model-specific extras (vision mmproj, MoE flags, etc.)\n");
     out.push_str(&format!("LLAMA_EXTRA_ARGS={}\n\n", r.extra_args));
 
+    // docker compose profile selection. The vello CLI always passes
+    // `--profile <mode>` explicitly via docker.rs, but emitting these too
+    // means a plain `docker compose up` from the project root still picks
+    // the right service (handy for debugging or third-party tooling).
+    let runtime = docker::profile_flag(r.mode);
+    out.push_str("# Runtime selection (docker compose profile)\n");
+    out.push_str(&format!("LLAMA_RUNTIME={runtime}\n"));
+    out.push_str(&format!("COMPOSE_PROFILES={runtime}\n\n"));
+
     out.push_str("# Web UI\n");
     out.push_str(&format!(
         "WEBUI_AUTH={}\n",
@@ -211,9 +263,8 @@ mod tests {
         assert!(!kept.contains("comment"));
     }
 
-    #[test]
-    fn render_includes_managed_keys() {
-        let r = Resolved {
+    fn sample_resolved(mode: Mode) -> Resolved {
+        Resolved {
             llama_port: 8080,
             webui_port: 3000,
             webui_auth: false,
@@ -229,11 +280,68 @@ mod tests {
             flash_attn: true,
             mmproj: String::new(),
             extra_args: String::new(),
-        };
-        let body = render(&r, "");
+            mode,
+        }
+    }
+
+    #[test]
+    fn render_includes_managed_keys() {
+        let body = render(&sample_resolved(Mode::Gpu), "");
         assert!(body.contains("LLAMA_MODEL_FILE=x.gguf"));
         assert!(body.contains("LLAMA_CTX=4096"));
         assert!(body.contains("LLAMA_FLASH_ATTN=on"));
         assert!(body.contains("WEBUI_AUTH=False"));
+    }
+
+    #[test]
+    fn render_emits_cuda_profile_in_gpu_mode() {
+        let body = render(&sample_resolved(Mode::Gpu), "");
+        assert!(body.contains("LLAMA_RUNTIME=cuda"));
+        assert!(body.contains("COMPOSE_PROFILES=cuda"));
+    }
+
+    #[test]
+    fn render_emits_cpu_profile_in_cpu_mode() {
+        let body = render(&sample_resolved(Mode::Cpu), "");
+        assert!(body.contains("LLAMA_RUNTIME=cpu"));
+        assert!(body.contains("COMPOSE_PROFILES=cpu"));
+    }
+
+    #[test]
+    fn apply_cpu_overrides_zeroes_ngl_and_flash_attn() {
+        let mut r = sample_resolved(Mode::Cpu);
+        r.ngl = 99;
+        r.flash_attn = true;
+        let sys = SystemConfig::default();
+        apply_cpu_overrides(&mut r, &sys);
+        assert_eq!(r.ngl, 0);
+        assert!(!r.flash_attn);
+    }
+
+    #[test]
+    fn apply_cpu_overrides_caps_ctx_batch_ubatch() {
+        let mut r = sample_resolved(Mode::Cpu);
+        r.ctx = 32768;
+        r.batch = 2048;
+        r.ubatch = 512;
+        let sys = SystemConfig::default();
+        apply_cpu_overrides(&mut r, &sys);
+        assert!(r.ctx <= 8192);
+        assert!(r.batch <= 512);
+        assert!(r.ubatch <= 128);
+    }
+
+    #[test]
+    fn apply_cpu_overrides_keeps_smaller_explicit_values() {
+        // If the user explicitly chose tighter values, don't bump them up.
+        let mut r = sample_resolved(Mode::Cpu);
+        r.ctx = 4096;
+        r.batch = 256;
+        r.ubatch = 64;
+        let sys = SystemConfig::default();
+        apply_cpu_overrides(&mut r, &sys);
+        assert_eq!(r.ctx, 4096);
+        assert_eq!(r.batch, 256);
+        assert_eq!(r.ubatch, 64);
     }
 }
